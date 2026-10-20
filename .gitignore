@@ -9,3 +9,7 @@ target/
 .env
 .env.*
 !.env.example
+.local-keys/
+meshpay-dashboard/node_modules/
+meshpay-dashboard/dist/
+meshpay-dashboard/tsconfig.tsbuildinfo

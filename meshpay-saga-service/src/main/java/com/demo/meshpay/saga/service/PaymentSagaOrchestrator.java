@@ -83,7 +83,7 @@ public class PaymentSagaOrchestrator {
         log.info("Validating payment in saga: sagaId={}, packetHash={}", sagaId, packetHash);
 
         SagaState existingState = sagaStateManager.getSagaState(sagaId);
-        if (existingState != null && "PAYMENT_VALIDATION_COMMAND_SENT".equals(existingState.getState())) return;
+        if (existingState != null && "PAYMENT_VALIDATION_COMMAND_QUEUED".equals(existingState.getState())) return;
         
         sagaStateManager.updateSagaState(sagaId, "VALIDATING_PAYMENT");
         
@@ -100,7 +100,7 @@ public class PaymentSagaOrchestrator {
                     .signedAt(signedAt)
                     .build();
             sagaCommandProducer.sendValidatePaymentCommand(command);
-            sagaStateManager.updateSagaState(sagaId, "PAYMENT_VALIDATION_COMMAND_SENT");
+            sagaStateManager.updateSagaState(sagaId, "PAYMENT_VALIDATION_COMMAND_QUEUED");
             
         } catch (Exception e) {
             log.error("Payment saga failed at VALIDATION: sagaId={}", sagaId, e);
@@ -121,7 +121,7 @@ public class PaymentSagaOrchestrator {
         log.info("Requesting settlement in saga: sagaId={}, packetHash={}", sagaId, packetHash);
 
         SagaState existingState = sagaStateManager.getSagaState(sagaId);
-        if (existingState != null && "SETTLEMENT_REQUEST_COMMAND_SENT".equals(existingState.getState())) return;
+        if (existingState != null && "SETTLEMENT_REQUEST_COMMAND_QUEUED".equals(existingState.getState())) return;
         
         sagaStateManager.updateSagaState(sagaId, "REQUESTING_SETTLEMENT");
         
@@ -138,7 +138,7 @@ public class PaymentSagaOrchestrator {
                     .signedAt(signedAt)
                     .build();
             sagaCommandProducer.sendRequestSettlementCommand(command);
-            sagaStateManager.updateSagaState(sagaId, "SETTLEMENT_REQUEST_COMMAND_SENT");
+            sagaStateManager.updateSagaState(sagaId, "SETTLEMENT_REQUEST_COMMAND_QUEUED");
             
         } catch (Exception e) {
             log.error("Payment saga failed at SETTLEMENT_REQUEST: sagaId={}", sagaId, e);
@@ -158,7 +158,7 @@ public class PaymentSagaOrchestrator {
         log.info("Completing payment saga: sagaId={}, packetHash={}", sagaId, packetHash);
 
         SagaState existingState = sagaStateManager.getSagaState(sagaId);
-        if (existingState != null && "SETTLEMENT_COMPLETION_COMMAND_SENT".equals(existingState.getState())) return;
+        if (existingState != null && "SETTLEMENT_COMPLETION_COMMAND_QUEUED".equals(existingState.getState())) return;
         
         sagaStateManager.updateSagaState(sagaId, "COMPLETING_SETTLEMENT");
         
@@ -173,7 +173,7 @@ public class PaymentSagaOrchestrator {
                     .amount(amount)
                     .build();
             sagaCommandProducer.sendCompleteSettlementCommand(command);
-            sagaStateManager.updateSagaState(sagaId, "SETTLEMENT_COMPLETION_COMMAND_SENT");
+            sagaStateManager.updateSagaState(sagaId, "SETTLEMENT_COMPLETION_COMMAND_QUEUED");
             
         } catch (Exception e) {
             log.error("Payment saga failed at COMPLETION: sagaId={}", sagaId, e);

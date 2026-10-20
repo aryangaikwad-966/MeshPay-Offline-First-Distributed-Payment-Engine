@@ -8,7 +8,7 @@ services:
       POSTGRES_USER: ${DB_USER:-meshpay}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
     ports:
-      - "5433:5432"
+      - "127.0.0.1:5433:5432"
     volumes:
       - postgres_payment_data:/var/lib/postgresql/data
     networks:
@@ -28,7 +28,7 @@ services:
       POSTGRES_USER: ${DB_USER:-meshpay}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
     ports:
-      - "5434:5432"
+      - "127.0.0.1:5434:5432"
     volumes:
       - postgres_saga_data:/var/lib/postgresql/data
     networks:
@@ -45,7 +45,7 @@ services:
     container_name: meshpay-redis
     command: redis-server --requirepass ${REDIS_PASSWORD:-changeme} --maxmemory 512mb --maxmemory-policy allkeys-lru
     ports:
-      - "${REDIS_PORT:-6379}:6379"
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
     volumes:
       - redis_data:/data
     networks:
@@ -64,7 +64,7 @@ services:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
     ports:
-      - "2181:2181"
+      - "127.0.0.1:2181:2181"
     volumes:
       - zookeeper_data:/var/lib/zookeeper/data
       - zookeeper_logs:/var/lib/zookeeper/log
@@ -78,8 +78,8 @@ services:
     depends_on:
       - zookeeper
     ports:
-      - "9092:9092"
-      - "29092:29092"
+      - "127.0.0.1:9092:9092"
+      - "127.0.0.1:29092:29092"
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
@@ -106,7 +106,7 @@ services:
       dockerfile: Dockerfile
     container_name: meshpay-eureka-server
     ports:
-      - "8761:8761"
+      - "127.0.0.1:8761:8761"
     networks:
       - meshpay-network
     healthcheck:
@@ -122,9 +122,13 @@ services:
       dockerfile: Dockerfile
     container_name: meshpay-api-gateway
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
       EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://eureka-server:8761/eureka/
+      MESHPAY_JWKS_URI: ${MESHPAY_JWKS_URI:-}
+      MESHPAY_JWT_ISSUER: ${MESHPAY_JWT_ISSUER:-}
+      MESHPAY_JWT_AUDIENCE: ${MESHPAY_JWT_AUDIENCE:-}
     depends_on:
       eureka-server:
         condition: service_healthy
@@ -143,7 +147,7 @@ services:
       dockerfile: Dockerfile
     container_name: meshpay-payment-service
     ports:
-      - "8081:8081"
+      - "127.0.0.1:8081:8081"
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-payment:5432/meshpay_payment
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
@@ -159,6 +163,9 @@ services:
       MESHPAY_PACKET_RSA_PRIVATE_KEY: ${MESHPAY_PACKET_RSA_PRIVATE_KEY:-}
       MESHPAY_PACKET_RSA_PUBLIC_KEY: ${MESHPAY_PACKET_RSA_PUBLIC_KEY:-}
       MESHPAY_PACKET_TRUSTED_SIGNERS: ${MESHPAY_PACKET_TRUSTED_SIGNERS:-}
+      MESHPAY_PACKET_MAX_OFFLINE_AGE: ${MESHPAY_PACKET_MAX_OFFLINE_AGE:-30d}
+      MESHPAY_OUTBOX_MAX_RETRIES: ${MESHPAY_OUTBOX_MAX_RETRIES:-10}
+      MESHPAY_OUTBOX_ENABLED: ${MESHPAY_OUTBOX_ENABLED:-true}
       MESHPAY_JWKS_URI: ${MESHPAY_JWKS_URI:-}
       MESHPAY_JWT_ISSUER: ${MESHPAY_JWT_ISSUER:-}
       MESHPAY_JWT_AUDIENCE: ${MESHPAY_JWT_AUDIENCE:-}
@@ -186,7 +193,7 @@ services:
       dockerfile: Dockerfile
     container_name: meshpay-saga-service
     ports:
-      - "8082:8082"
+      - "127.0.0.1:8082:8082"
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-saga:5432/meshpay_saga
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
@@ -227,7 +234,7 @@ services:
       - --storage.tsdb.path=/prometheus
       - --web.enable-lifecycle
     ports:
-      - "9090:9090"
+      - "127.0.0.1:9090:9090"
     volumes:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
@@ -246,7 +253,7 @@ services:
       GF_USERS_ALLOW_SIGN_UP: "false"
       GF_PATHS_PROVISIONING: /etc/grafana/provisioning
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     volumes:
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
@@ -262,7 +269,7 @@ services:
       dockerfile: Dockerfile
     container_name: meshpay-dashboard
     ports:
-      - "3001:80"
+      - "127.0.0.1:3001:80"
     depends_on:
       - payment-service
       - saga-service

@@ -121,12 +121,12 @@ public class SagaStateManager {
             return !from.equals("SAGA_COMPLETED") && !from.equals("SAGA_COMPENSATED");
         return switch (from) {
             case "PAYMENT_RECEIVED" -> to.equals("VALIDATING_PAYMENT") || to.equals("SAGA_START_FAILED");
-            case "VALIDATING_PAYMENT" -> to.equals("PAYMENT_VALIDATION_COMMAND_SENT");
-            case "PAYMENT_VALIDATION_COMMAND_SENT" -> to.equals("REQUESTING_SETTLEMENT");
-            case "REQUESTING_SETTLEMENT" -> to.equals("SETTLEMENT_REQUEST_COMMAND_SENT");
-            case "SETTLEMENT_REQUEST_COMMAND_SENT" -> to.equals("COMPLETING_SETTLEMENT");
-            case "COMPLETING_SETTLEMENT" -> to.equals("SETTLEMENT_COMPLETION_COMMAND_SENT");
-            case "SETTLEMENT_COMPLETION_COMMAND_SENT" -> to.equals("SAGA_COMPLETED") || to.equals("SETTLEMENT_COMPENSATED");
+            case "VALIDATING_PAYMENT" -> to.equals("PAYMENT_VALIDATION_COMMAND_QUEUED");
+            case "PAYMENT_VALIDATION_COMMAND_QUEUED" -> to.equals("REQUESTING_SETTLEMENT");
+            case "REQUESTING_SETTLEMENT" -> to.equals("SETTLEMENT_REQUEST_COMMAND_QUEUED");
+            case "SETTLEMENT_REQUEST_COMMAND_QUEUED" -> to.equals("COMPLETING_SETTLEMENT");
+            case "COMPLETING_SETTLEMENT" -> to.equals("SETTLEMENT_COMPLETION_COMMAND_QUEUED");
+            case "SETTLEMENT_COMPLETION_COMMAND_QUEUED" -> to.equals("SAGA_COMPLETED") || to.equals("SETTLEMENT_COMPENSATED");
             case "PAYMENT_VALIDATION_FAILED" -> to.equals("VALIDATION_COMPENSATED");
             case "SETTLEMENT_REQUEST_FAILED" -> to.equals("SETTLEMENT_REQUEST_COMPENSATED");
             case "SETTLEMENT_COMPLETION_FAILED" -> to.equals("SETTLEMENT_COMPENSATED");

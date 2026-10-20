@@ -1,0 +1,13 @@
+.offline .keyrow,.offline .packet-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:16px 0}
+.offline label{display:grid;gap:7px;color:#9aabba;font-size:11px}
+.offline input{width:100%;padding:10px 11px;border:1px solid #293c4f;border-radius:7px;background:#0b131d;color:#e8f0f6;font:inherit;font-size:12px}
+.offline input[type=file]{padding:8px}
+.offline .keyrow{align-items:end}
+.offline .keyrow small{grid-column:1/-1;color:#72879a}
+.offline .packet-form button{align-self:end;justify-self:start}
+.offline .panel-head h2 small{color:#72879a;font-size:10px;font-weight:400}
+.offline .row{flex-wrap:wrap}
+.offline .row>div{min-width:180px;flex:1}
+.offline .state{white-space:nowrap}
+.offline .refresh:disabled{opacity:.5;cursor:not-allowed}
+@media(max-width:700px){.offline .keyrow,.offline .packet-form{grid-template-columns:1fr}}
