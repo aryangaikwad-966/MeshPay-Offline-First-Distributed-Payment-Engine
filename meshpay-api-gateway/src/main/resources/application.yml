@@ -8,6 +8,9 @@ spring:
     compatibility-verifier:
       enabled: false
     gateway:
+      httpclient:
+        connect-timeout: 1000
+        response-timeout: 3s
       discovery:
         locator:
           enabled: true
@@ -19,7 +22,10 @@ spring:
           predicates:
             - Path=/api/payment/**
           filters:
-            - StripPrefix=2
+            - name: CircuitBreaker
+              args:
+                name: paymentService
+                fallbackUri: forward:/fallback/payment
         
         # Saga Service Routes
         - id: saga-service
@@ -27,7 +33,10 @@ spring:
           predicates:
             - Path=/api/saga/**
           filters:
-            - StripPrefix=2
+            - name: CircuitBreaker
+              args:
+                name: sagaService
+                fallbackUri: forward:/fallback/saga
 
 eureka:
   client:
@@ -40,13 +49,19 @@ resilience4j:
   circuitbreaker:
     instances:
       paymentService:
+        sliding-window-type: COUNT_BASED
+        minimum-number-of-calls: 5
         failure-rate-threshold: 50
-        wait-duration-in-open-state: 10000
+        wait-duration-in-open-state: 10s
         sliding-window-size: 10
+        permitted-number-of-calls-in-half-open-state: 3
       sagaService:
+        sliding-window-type: COUNT_BASED
+        minimum-number-of-calls: 5
         failure-rate-threshold: 50
-        wait-duration-in-open-state: 10000
+        wait-duration-in-open-state: 10s
         sliding-window-size: 10
+        permitted-number-of-calls-in-half-open-state: 3
 
 management:
   endpoints:

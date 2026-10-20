@@ -4,9 +4,10 @@ import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
+import com.demo.meshpay.payment.model.Transaction;
+import com.demo.meshpay.payment.repository.TransactionRepository;
 import org.springframework.stereotype.Component;
 
-import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Custom metrics for Payment Settlement operations
@@ -16,7 +17,6 @@ import java.util.concurrent.atomic.AtomicLong;
 public class PaymentMetrics {
 
     private final MeterRegistry meterRegistry;
-    private final AtomicLong pendingSettlements = new AtomicLong(0);
 
     // Counters
     private final Counter paymentReceivedCounter;
@@ -30,7 +30,7 @@ public class PaymentMetrics {
     private final Timer settlementTimer;
     private final Timer validationTimer;
 
-    public PaymentMetrics(MeterRegistry meterRegistry) {
+    public PaymentMetrics(MeterRegistry meterRegistry, TransactionRepository transactions) {
         this.meterRegistry = meterRegistry;
 
         // Initialize counters
@@ -68,7 +68,10 @@ public class PaymentMetrics {
                 .register(meterRegistry);
 
         // Initialize gauges
-        Gauge.builder("payment.pending.settlements", pendingSettlements, AtomicLong::get)
+        Gauge.builder("payment.pending.settlements", transactions, repository ->
+                        repository.countByStatus(Transaction.Status.SYNCHRONIZED)
+                                + repository.countByStatus(Transaction.Status.VALIDATED)
+                                + repository.countByStatus(Transaction.Status.SETTLEMENT_REQUESTED))
                 .description("Number of pending settlements")
                 .register(meterRegistry);
     }
@@ -115,16 +118,4 @@ public class PaymentMetrics {
         sample.stop(validationTimer);
     }
 
-    // Gauge update methods
-    public void incrementPendingSettlements() {
-        pendingSettlements.incrementAndGet();
-    }
-
-    public void decrementPendingSettlements() {
-        pendingSettlements.decrementAndGet();
-    }
-
-    public long getPendingSettlements() {
-        return pendingSettlements.get();
-    }
 }

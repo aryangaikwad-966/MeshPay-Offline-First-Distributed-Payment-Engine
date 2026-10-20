@@ -88,7 +88,7 @@ services:
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: true
-      KAFKA_CREATE_TOPICS: "saga-validate-payment-command:1:1,saga-request-settlement-command:1:1,saga-complete-settlement-command:1:1,payment-validated:1:1,payment-settlement-requested:1:1,payment-settled:1:1,payment-failed:1:1,saga-completed:1:1,saga-failed:1:1"
+      KAFKA_CREATE_TOPICS: "saga-validate-payment-command:1:1,saga-request-settlement-command:1:1,saga-complete-settlement-command:1:1,payment-packet-synchronized:1:1,payment-validated:1:1,payment-settlement-requested:1:1,payment-settled:1:1,payment-failed:1:1,saga-completed:1:1,saga-failed:1:1"
     volumes:
       - kafka_data:/var/lib/kafka/data
     networks:
@@ -146,15 +146,22 @@ services:
       - "8081:8081"
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-payment:5432/meshpay_payment
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
       SPRING_DATASOURCE_USERNAME: ${DB_USER:-meshpay}
       SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-changeme}
       SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.postgresql.Driver
       SPRING_JPA_PROPERTIES_HIBERNATE_DIALECT: org.hibernate.dialect.PostgreSQLDialect
-      SPRING_REDIS_HOST: redis
-      SPRING_REDIS_PORT: 6379
-      SPRING_REDIS_PASSWORD: ${REDIS_PASSWORD:-changeme}
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD:-changeme}
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://eureka-server:8761/eureka/
+      MESHPAY_PACKET_RSA_PRIVATE_KEY: ${MESHPAY_PACKET_RSA_PRIVATE_KEY:-}
+      MESHPAY_PACKET_RSA_PUBLIC_KEY: ${MESHPAY_PACKET_RSA_PUBLIC_KEY:-}
+      MESHPAY_PACKET_TRUSTED_SIGNERS: ${MESHPAY_PACKET_TRUSTED_SIGNERS:-}
+      MESHPAY_JWKS_URI: ${MESHPAY_JWKS_URI:-}
+      MESHPAY_JWT_ISSUER: ${MESHPAY_JWT_ISSUER:-}
+      MESHPAY_JWT_AUDIENCE: ${MESHPAY_JWT_AUDIENCE:-}
     depends_on:
       postgres-payment:
         condition: service_healthy
@@ -182,15 +189,19 @@ services:
       - "8082:8082"
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-saga:5432/meshpay_saga
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
       SPRING_DATASOURCE_USERNAME: ${DB_USER:-meshpay}
       SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-changeme}
       SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.postgresql.Driver
       SPRING_JPA_PROPERTIES_HIBERNATE_DIALECT: org.hibernate.dialect.PostgreSQLDialect
-      SPRING_REDIS_HOST: redis
-      SPRING_REDIS_PORT: 6379
-      SPRING_REDIS_PASSWORD: ${REDIS_PASSWORD:-changeme}
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD:-changeme}
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://eureka-server:8761/eureka/
+      MESHPAY_JWKS_URI: ${MESHPAY_JWKS_URI:-}
+      MESHPAY_JWT_ISSUER: ${MESHPAY_JWT_ISSUER:-}
+      MESHPAY_JWT_AUDIENCE: ${MESHPAY_JWT_AUDIENCE:-}
     depends_on:
       postgres-saga:
         condition: service_healthy
@@ -207,6 +218,56 @@ services:
       interval: 30s
       timeout: 3s
       retries: 3
+
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    container_name: meshpay-prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.enable-lifecycle
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    depends_on:
+      - payment-service
+      - saga-service
+      - api-gateway
+    networks:
+      - meshpay-network
+
+  grafana:
+    image: grafana/grafana:11.2.2
+    container_name: meshpay-grafana
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-dev-only-change-me}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_PATHS_PROVISIONING: /etc/grafana/provisioning
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    networks:
+      - meshpay-network
+
+  dashboard:
+    build:
+      context: ./meshpay-dashboard
+      dockerfile: Dockerfile
+    container_name: meshpay-dashboard
+    ports:
+      - "3001:80"
+    depends_on:
+      - payment-service
+      - saga-service
+    networks:
+      - meshpay-network
 
 networks:
   meshpay-network:
@@ -225,4 +286,7 @@ volumes:
     driver: local
   kafka_data:
     driver: local
-
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local

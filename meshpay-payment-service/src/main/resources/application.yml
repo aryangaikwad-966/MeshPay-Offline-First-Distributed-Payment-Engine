@@ -19,14 +19,23 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: true
+
+  flyway:
+    baseline-on-migrate: true
+    baseline-version: 0
+    locations: classpath:db/migration,classpath:db/migration-v2
   
-  redis:
-    host: ${SPRING_REDIS_HOST:localhost}
-    port: ${SPRING_REDIS_PORT:6379}
-    password: ${SPRING_REDIS_PASSWORD:}
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:${SPRING_REDIS_HOST:localhost}}
+      port: ${SPRING_DATA_REDIS_PORT:${SPRING_REDIS_PORT:6379}}
+      password: ${SPRING_DATA_REDIS_PASSWORD:${SPRING_REDIS_PASSWORD:}}
   
   kafka:
     bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    listener:
+      ack-mode: record
+      missing-topics-fatal: false
     consumer:
       group-id: payment-service-group
       auto-offset-reset: earliest
@@ -44,6 +53,12 @@ eureka:
     prefer-ip-address: true
 
 resilience4j:
+  ratelimiter:
+    instances:
+      packetSync:
+        limit-for-period: 40
+        limit-refresh-period: 1s
+        timeout-duration: 0
   circuitbreaker:
     instances:
       sagaService:
@@ -74,6 +89,17 @@ springdoc:
     path: /api-docs
   swagger-ui:
     path: /swagger-ui.html
+
+meshpay:
+  packet:
+    server-private-key: ${MESHPAY_PACKET_RSA_PRIVATE_KEY:}
+    server-public-key: ${MESHPAY_PACKET_RSA_PUBLIC_KEY:}
+    # senderVpa=base64(X.509 RSA public key), entries separated by semicolons.
+    trusted-signers: ${MESHPAY_PACKET_TRUSTED_SIGNERS:}
+    max-offline-age: ${MESHPAY_PACKET_MAX_OFFLINE_AGE:30d}
+  outbox:
+    max-retries: ${MESHPAY_OUTBOX_MAX_RETRIES:10}
+    enabled: ${MESHPAY_OUTBOX_ENABLED:true}
 
 logging:
   pattern:

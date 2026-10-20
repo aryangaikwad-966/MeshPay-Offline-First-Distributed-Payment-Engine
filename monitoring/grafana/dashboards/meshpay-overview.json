@@ -1,0 +1,54 @@
+{
+  "id": null,
+  "uid": "meshpay-overview",
+  "title": "MeshPay Reliability",
+  "tags": ["meshpay", "payments"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "15s",
+  "time": { "from": "now-1h", "to": "now" },
+  "panels": [
+    {
+      "id": 1, "title": "Synchronized packet outcomes", "type": "timeseries", "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "meshpay-prometheus" },
+      "targets": [
+        { "expr": "increase(meshpay_packet_accepted_total[5m])", "legendFormat": "Accepted" },
+        { "expr": "increase(meshpay_packet_rejected_total[5m])", "legendFormat": "Rejected" },
+        { "expr": "increase(meshpay_packet_duplicate_total[5m])", "legendFormat": "Duplicates" }
+      ]
+    },
+    {
+      "id": 2, "title": "Outbox backlog", "type": "timeseries", "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "meshpay-prometheus" },
+      "targets": [
+        { "expr": "meshpay_outbox_pending", "legendFormat": "Pending" },
+        { "expr": "meshpay_outbox_deadletter", "legendFormat": "Dead letter" },
+        { "expr": "meshpay_outbox_oldest_pending_seconds", "legendFormat": "Oldest pending age (seconds)" }
+      ]
+    },
+    {
+      "id": 3, "title": "Payment settlement latency", "type": "timeseries", "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "meshpay-prometheus" },
+      "targets": [
+        { "expr": "rate(validation_duration_seconds_sum[5m]) / clamp_min(rate(validation_duration_seconds_count[5m]), 1e-9)", "legendFormat": "Validation mean (seconds)" },
+        { "expr": "rate(settlement_duration_seconds_sum[5m]) / clamp_min(rate(settlement_duration_seconds_count[5m]), 1e-9)", "legendFormat": "Settlement mean (seconds)" }
+      ]
+    },
+    {
+      "id": 4, "title": "Saga activity", "type": "timeseries", "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "meshpay-prometheus" },
+      "targets": [
+        { "expr": "saga_active_count", "legendFormat": "Active Sagas" },
+        { "expr": "increase(saga_completed_total[5m])", "legendFormat": "Completed" },
+        { "expr": "increase(saga_compensated_total[5m])", "legendFormat": "Compensated" }
+      ]
+    },
+    {
+      "id": 5, "title": "Service scrape health", "type": "stat", "gridPos": { "h": 5, "w": 24, "x": 0, "y": 16 },
+      "datasource": { "type": "prometheus", "uid": "meshpay-prometheus" },
+      "targets": [{ "expr": "up{job=~\"meshpay-.*\"}", "legendFormat": "{{job}}" }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "orientation": "horizontal", "textMode": "value_and_name" }
+    }
+  ]
+}

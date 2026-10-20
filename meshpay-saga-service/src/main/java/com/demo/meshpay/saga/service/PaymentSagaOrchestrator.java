@@ -46,7 +46,6 @@ public class PaymentSagaOrchestrator {
             // For now, we'll simulate the flow
             
             sagaMetrics.incrementSagaStarted();
-            sagaMetrics.incrementActiveSagas();
             
             log.info("Payment saga started successfully: sagaId={}", sagaId);
             return sagaId;
@@ -55,10 +54,22 @@ public class PaymentSagaOrchestrator {
             log.error("Failed to start payment saga: sagaId={}", sagaId, e);
             sagaStateManager.updateSagaState(sagaId, "SAGA_START_FAILED");
             sagaMetrics.incrementSagaCompensated();
-            sagaMetrics.decrementActiveSagas();
             sagaMetrics.stopSagaExecutionTimer(timer);
             throw new RuntimeException("Failed to start payment saga", e);
         }
+    }
+
+    @Transactional
+    public String startSynchronizedPayment(String packetId, String packetHash, String senderVpa, String receiverVpa,
+            java.math.BigDecimal amount, String currency, String nonce, Long signedAt) {
+        String existing = sagaStateManager.findSagaByPacketHash(packetHash);
+        if (existing != null) return existing;
+        String sagaId = UUID.randomUUID().toString();
+        sagaStateManager.createSynchronizedPaymentSaga(sagaId, packetHash, packetId, senderVpa, receiverVpa,
+                amount, currency, nonce, signedAt);
+        sagaMetrics.incrementSagaStarted();
+        validatePaymentSaga(sagaId, packetId, packetHash, senderVpa, receiverVpa, amount, nonce, signedAt);
+        return sagaId;
     }
 
     /**
@@ -70,6 +81,9 @@ public class PaymentSagaOrchestrator {
                                    String senderVpa, String receiverVpa, java.math.BigDecimal amount, 
                                    String nonce, Long signedAt) {
         log.info("Validating payment in saga: sagaId={}, packetHash={}", sagaId, packetHash);
+
+        SagaState existingState = sagaStateManager.getSagaState(sagaId);
+        if (existingState != null && "PAYMENT_VALIDATION_COMMAND_SENT".equals(existingState.getState())) return;
         
         sagaStateManager.updateSagaState(sagaId, "VALIDATING_PAYMENT");
         
@@ -105,6 +119,9 @@ public class PaymentSagaOrchestrator {
                                       String senderVpa, String receiverVpa, java.math.BigDecimal amount,
                                       String nonce, Long signedAt) {
         log.info("Requesting settlement in saga: sagaId={}, packetHash={}", sagaId, packetHash);
+
+        SagaState existingState = sagaStateManager.getSagaState(sagaId);
+        if (existingState != null && "SETTLEMENT_REQUEST_COMMAND_SENT".equals(existingState.getState())) return;
         
         sagaStateManager.updateSagaState(sagaId, "REQUESTING_SETTLEMENT");
         
@@ -139,6 +156,9 @@ public class PaymentSagaOrchestrator {
     public void completePaymentSaga(String sagaId, String packetId, String packetHash,
                                     String senderVpa, String receiverVpa, java.math.BigDecimal amount) {
         log.info("Completing payment saga: sagaId={}, packetHash={}", sagaId, packetHash);
+
+        SagaState existingState = sagaStateManager.getSagaState(sagaId);
+        if (existingState != null && "SETTLEMENT_COMPLETION_COMMAND_SENT".equals(existingState.getState())) return;
         
         sagaStateManager.updateSagaState(sagaId, "COMPLETING_SETTLEMENT");
         
@@ -159,7 +179,6 @@ public class PaymentSagaOrchestrator {
             log.error("Payment saga failed at COMPLETION: sagaId={}", sagaId, e);
             sagaStateManager.updateSagaState(sagaId, "SETTLEMENT_COMPLETION_FAILED");
             sagaMetrics.incrementSagaCompensated();
-            sagaMetrics.decrementActiveSagas();
             compensateSettlement(sagaId, packetHash);
             throw new RuntimeException("Settlement completion failed", e);
         }
@@ -209,8 +228,16 @@ public class PaymentSagaOrchestrator {
     @Transactional
     public void compensatePaymentSaga(String sagaId, String packetHash, String failureReason) {
         log.info("Compensating payment saga: sagaId={}, reason={}", sagaId, failureReason);
+        sagaStateManager.recordFailureReason(sagaId, failureReason);
         sagaStateManager.updateSagaState(sagaId, "SAGA_COMPENSATED");
         sagaMetrics.incrementSagaCompensated();
-        sagaMetrics.decrementActiveSagas();
+    }
+
+    @Transactional
+    public void markPaymentCompleted(String sagaId) {
+        SagaState state = sagaStateManager.getSagaState(sagaId);
+        if (state == null || "SAGA_COMPLETED".equals(state.getState())) return;
+        sagaStateManager.updateSagaState(sagaId, "SAGA_COMPLETED");
+        sagaMetrics.incrementSagaCompleted();
     }
 }

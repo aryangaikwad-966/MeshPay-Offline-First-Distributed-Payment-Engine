@@ -1,122 +1,73 @@
 package com.demo.meshpay.payment.consumer;
 
+import com.demo.meshpay.payment.model.ProcessedCommand;
+import com.demo.meshpay.payment.repository.ProcessedCommandRepository;
 import com.demo.meshpay.payment.service.PaymentSettlementService;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
-/**
- * Kafka consumer for Saga commands from Saga Service
- * Enables decoupled microservices communication
- */
+import java.math.BigDecimal;
+
 @Component
 @Slf4j
 @RequiredArgsConstructor
 public class SagaCommandConsumer {
-
     private final PaymentSettlementService paymentSettlementService;
-    private final ObjectMapper objectMapper;
+    private final ProcessedCommandRepository processedCommands;
+    private final ObjectMapper mapper;
 
     @KafkaListener(topics = "saga-validate-payment-command", groupId = "payment-service-group")
-    public void handleValidatePaymentCommand(String message) {
-        try {
-            // Parse command (simplified - in production use proper command classes)
-            com.fasterxml.jackson.databind.JsonNode node = objectMapper.readTree(message);
-            String sagaId = node.get("sagaId").asText();
-            String packetId = node.get("packetId").asText();
-            String packetHash = node.get("packetHash").asText();
-            String senderVpa = node.get("senderVpa").asText();
-            String receiverVpa = node.get("receiverVpa").asText();
-            java.math.BigDecimal amount = node.get("amount").decimalValue();
-            String nonce = node.get("nonce").asText();
-            Long signedAt = node.get("signedAt").asLong();
-            
-            log.info("Received validate payment command: sagaId={}, packetId={}", sagaId, packetId);
-            
-            // Execute payment validation
-            paymentSettlementService.validatePayment(
-                packetId,
-                packetHash,
-                senderVpa,
-                receiverVpa,
-                amount,
-                nonce,
-                signedAt,
-                null // parentEventId - will be derived from saga context
-            );
-            
-            log.info("Successfully processed validate payment command: sagaId={}", sagaId);
-        } catch (Exception e) {
-            log.error("Failed to process validate payment command", e);
-            throw new RuntimeException("Failed to process validate payment command", e);
-        }
+    @Transactional
+    public void handleValidatePaymentCommand(String message) throws Exception {
+        JsonNode command = mapper.readTree(message);
+        String commandId = command.path("sagaId").asText() + ":VALIDATE";
+        if (alreadyProcessed(commandId)) return;
+        paymentSettlementService.validatePayment(packetId(command), hash(command), text(command, "senderVpa"),
+                text(command, "receiverVpa"), amount(command), text(command, "nonce"), command.path("signedAt").asLong(), commandId);
+        markProcessed(commandId);
+        log.info("Processed payment validation command: sagaId={}", command.path("sagaId").asText());
     }
 
     @KafkaListener(topics = "saga-request-settlement-command", groupId = "payment-service-group")
-    public void handleRequestSettlementCommand(String message) {
-        try {
-            // Parse command
-            com.fasterxml.jackson.databind.JsonNode node = objectMapper.readTree(message);
-            String sagaId = node.get("sagaId").asText();
-            String packetId = node.get("packetId").asText();
-            String packetHash = node.get("packetHash").asText();
-            String senderVpa = node.get("senderVpa").asText();
-            String receiverVpa = node.get("receiverVpa").asText();
-            java.math.BigDecimal amount = node.get("amount").decimalValue();
-            String nonce = node.get("nonce").asText();
-            Long signedAt = node.get("signedAt").asLong();
-            
-            log.info("Received request settlement command: sagaId={}, packetId={}", sagaId, packetId);
-            
-            // Execute settlement request
-            paymentSettlementService.requestSettlement(
-                packetId,
-                packetHash,
-                senderVpa,
-                receiverVpa,
-                amount,
-                nonce,
-                signedAt,
-                null // parentEventId
-            );
-            
-            log.info("Successfully processed request settlement command: sagaId={}", sagaId);
-        } catch (Exception e) {
-            log.error("Failed to process request settlement command", e);
-            throw new RuntimeException("Failed to process request settlement command", e);
-        }
+    @Transactional
+    public void handleRequestSettlementCommand(String message) throws Exception {
+        JsonNode command = mapper.readTree(message);
+        String commandId = command.path("sagaId").asText() + ":REQUEST_SETTLEMENT";
+        if (alreadyProcessed(commandId)) return;
+        paymentSettlementService.requestSettlement(packetId(command), hash(command), text(command, "senderVpa"),
+                text(command, "receiverVpa"), amount(command), text(command, "nonce"), command.path("signedAt").asLong(), commandId);
+        markProcessed(commandId);
+        log.info("Processed payment settlement request command: sagaId={}", command.path("sagaId").asText());
     }
 
     @KafkaListener(topics = "saga-complete-settlement-command", groupId = "payment-service-group")
-    public void handleCompleteSettlementCommand(String message) {
-        try {
-            // Parse command
-            com.fasterxml.jackson.databind.JsonNode node = objectMapper.readTree(message);
-            String sagaId = node.get("sagaId").asText();
-            String packetId = node.get("packetId").asText();
-            String packetHash = node.get("packetHash").asText();
-            String senderVpa = node.get("senderVpa").asText();
-            String receiverVpa = node.get("receiverVpa").asText();
-            java.math.BigDecimal amount = node.get("amount").decimalValue();
-            
-            log.info("Received complete settlement command: sagaId={}, packetId={}", sagaId, packetId);
-            
-            // Execute settlement completion
-            paymentSettlementService.markPaymentSettled(
-                packetId,
-                packetHash,
-                senderVpa,
-                receiverVpa,
-                amount,
-                null // parentEventId
-            );
-            
-            log.info("Successfully processed complete settlement command: sagaId={}", sagaId);
-        } catch (Exception e) {
-            log.error("Failed to process complete settlement command", e);
-            throw new RuntimeException("Failed to process complete settlement command", e);
-        }
+    @Transactional
+    public void handleCompleteSettlementCommand(String message) throws Exception {
+        JsonNode command = mapper.readTree(message);
+        String commandId = command.path("sagaId").asText() + ":COMPLETE_SETTLEMENT";
+        if (alreadyProcessed(commandId)) return;
+        paymentSettlementService.markPaymentSettled(packetId(command), hash(command), text(command, "senderVpa"),
+                text(command, "receiverVpa"), amount(command), commandId);
+        markProcessed(commandId);
+        log.info("Processed payment settlement completion command: sagaId={}", command.path("sagaId").asText());
+    }
+
+    private boolean alreadyProcessed(String commandId) { return processedCommands.existsByCommandId(commandId); }
+    private void markProcessed(String commandId) { processedCommands.save(new ProcessedCommand(commandId)); }
+    private String text(JsonNode node, String field) {
+        String value = node.path(field).asText("");
+        if (value.isBlank()) throw new IllegalArgumentException("Command field is missing: " + field);
+        return value;
+    }
+    private String packetId(JsonNode node) { return text(node, "packetId"); }
+    private String hash(JsonNode node) { return text(node, "packetHash"); }
+    private BigDecimal amount(JsonNode node) {
+        if (!node.hasNonNull("amount")) throw new IllegalArgumentException("Command amount is missing");
+        return node.get("amount").decimalValue();
     }
 }

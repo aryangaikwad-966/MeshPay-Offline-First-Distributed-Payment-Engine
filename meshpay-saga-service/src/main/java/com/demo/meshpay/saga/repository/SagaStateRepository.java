@@ -17,5 +17,9 @@ public interface SagaStateRepository extends JpaRepository<SagaState, Long> {
 
     Optional<SagaState> findByPacketHash(String packetHash);
 
+    java.util.List<SagaState> findTop100ByOrderByUpdatedAtDesc();
+    long countByStateNotIn(java.util.Collection<String> states);
+    long countByState(String state);
+
     void deleteBySagaId(String sagaId);
 }

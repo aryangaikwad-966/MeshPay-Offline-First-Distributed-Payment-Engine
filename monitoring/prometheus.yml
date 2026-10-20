@@ -1,0 +1,19 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: meshpay-payment
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["payment-service:8081"]
+
+  - job_name: meshpay-saga
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["saga-service:8082"]
+
+  - job_name: meshpay-gateway
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["api-gateway:8080"]

@@ -1,0 +1,10 @@
+apiVersion: 1
+providers:
+  - name: MeshPay
+    orgId: 1
+    folder: MeshPay
+    type: file
+    disableDeletion: false
+    editable: true
+    options:
+      path: /var/lib/grafana/dashboards

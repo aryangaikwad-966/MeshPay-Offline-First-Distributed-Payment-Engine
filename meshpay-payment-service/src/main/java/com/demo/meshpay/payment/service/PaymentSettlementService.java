@@ -5,7 +5,10 @@ import com.demo.meshpay.payment.events.PaymentFailedEvent;
 import com.demo.meshpay.payment.events.PaymentSettledEvent;
 import com.demo.meshpay.payment.events.PaymentValidatedEvent;
 import com.demo.meshpay.payment.metrics.PaymentMetrics;
+import com.demo.meshpay.payment.model.Transaction;
 import com.demo.meshpay.payment.repository.TransactionRepository;
+import com.demo.meshpay.payment.model.PaymentLifecycleEvent;
+import com.demo.meshpay.payment.repository.PaymentLifecycleEventRepository;
 import io.micrometer.core.instrument.Timer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -28,6 +31,7 @@ public class PaymentSettlementService {
     private final OutboxService outboxService;
     private final PaymentMetrics paymentMetrics;
     private final TransactionRepository transactionRepository;
+    private final PaymentLifecycleEventRepository lifecycleEvents;
 
     /**
      * Validate a payment
@@ -42,17 +46,23 @@ public class PaymentSettlementService {
             String aggregateId = packetHash;
             
             log.info("Validating payment: packetHash={}", packetHash);
-            
-            // Check idempotency - if transaction already exists, skip
-            if (transactionRepository.existsByPacketHash(packetHash)) {
-                log.info("Payment already processed (idempotent): packetHash={}", packetHash);
+
+            Transaction transaction = requirePayment(packetId, packetHash, senderVpa, receiverVpa, amount, nonce, signedAt);
+            if (transaction.getStatus() == Transaction.Status.VALIDATED ||
+                    transaction.getStatus() == Transaction.Status.SETTLEMENT_REQUESTED ||
+                    transaction.getStatus() == Transaction.Status.SETTLED) {
+                paymentMetrics.stopValidationTimer(timer);
                 return;
             }
-            
-            // Perform validation logic (simplified for demo)
+            if (transaction.getStatus() != Transaction.Status.SYNCHRONIZED)
+                throw new IllegalStateException("Payment is not in a synchronizable state");
+
             boolean isValid = validatePaymentLogic(senderVpa, receiverVpa, amount);
             
             if (isValid) {
+                recordTransition(transaction, Transaction.Status.VALIDATED, "PAYMENT_VALIDATED");
+                transaction.setStatus(Transaction.Status.VALIDATED);
+                transactionRepository.save(transaction);
                 // Create payment validated event
                 PaymentValidatedEvent paymentValidatedEvent = PaymentValidatedEvent.builder()
                         .packetId(packetId)
@@ -91,7 +101,6 @@ public class PaymentSettlementService {
                 paymentMetrics.stopValidationTimer(timer);
                 
             } else {
-                // Payment validation failed
                 handlePaymentFailure(packetId, packetHash, "VALIDATION_FAILED", "Validation failed", parentEventId);
             }
             
@@ -116,6 +125,17 @@ public class PaymentSettlementService {
             String aggregateId = packetHash;
             
             log.info("Requesting settlement: packetHash={}", packetHash);
+            Transaction transaction = requirePayment(packetId, packetHash, senderVpa, receiverVpa, amount, nonce, signedAt);
+            if (transaction.getStatus() == Transaction.Status.SETTLEMENT_REQUESTED ||
+                    transaction.getStatus() == Transaction.Status.SETTLED) {
+                paymentMetrics.stopSettlementTimer(timer);
+                return;
+            }
+            if (transaction.getStatus() != Transaction.Status.VALIDATED)
+                throw new IllegalStateException("Payment must be validated before settlement is requested");
+            recordTransition(transaction, Transaction.Status.SETTLEMENT_REQUESTED, "SETTLEMENT_REQUESTED");
+            transaction.setStatus(Transaction.Status.SETTLEMENT_REQUESTED);
+            transactionRepository.save(transaction);
             paymentMetrics.incrementSettlementRequested();
             
             // Create settlement request event
@@ -175,6 +195,19 @@ public class PaymentSettlementService {
             String aggregateId = packetHash;
             
             log.info("Marking payment as settled: packetHash={}", packetHash);
+            Transaction transaction = transactionRepository.findByPacketHash(packetHash)
+                    .orElseThrow(() -> new IllegalArgumentException("Synchronized payment was not found"));
+            if (!transaction.getPacketId().equals(packetId) || transaction.getAmount().compareTo(amount) != 0 ||
+                    !transaction.getSenderVpa().equalsIgnoreCase(senderVpa) ||
+                    !transaction.getReceiverVpa().equalsIgnoreCase(receiverVpa))
+                throw new IllegalArgumentException("Settlement command does not match the synchronized payment");
+            if (transaction.getStatus() == Transaction.Status.SETTLED) return;
+            if (transaction.getStatus() != Transaction.Status.SETTLEMENT_REQUESTED)
+                throw new IllegalStateException("Settlement was not requested for this payment");
+            recordTransition(transaction, Transaction.Status.SETTLED, "SETTLEMENT_CONFIRMED");
+            transaction.setStatus(Transaction.Status.SETTLED);
+            transaction.setSettledAt(Instant.now());
+            transactionRepository.save(transaction);
             paymentMetrics.incrementPaymentSettled();
             
             // Create payment settled event
@@ -223,6 +256,15 @@ public class PaymentSettlementService {
     @Transactional
     public void handlePaymentFailure(String packetId, String packetHash, String failureType, String failureReason, String parentEventId) {
         try {
+            Transaction transaction = transactionRepository.findByPacketHash(packetHash).orElse(null);
+            if (transaction != null) {
+                if (transaction.getStatus() == Transaction.Status.SETTLED)
+                    throw new IllegalStateException("A completed payment cannot be marked rejected by compensation");
+                if (transaction.getStatus() == Transaction.Status.REJECTED) return;
+                recordTransition(transaction, Transaction.Status.REJECTED, failureType);
+                transaction.setStatus(Transaction.Status.REJECTED);
+                transactionRepository.save(transaction);
+            }
             String eventId = UUID.randomUUID().toString();
             String aggregateId = packetHash;
             
@@ -272,9 +314,24 @@ public class PaymentSettlementService {
      * In a real system, this would check balances, limits, KYC, etc.
      */
     private boolean validatePaymentLogic(String senderVpa, String receiverVpa, BigDecimal amount) {
-        // Simplified validation - always return true for demo
-        // In production, implement actual validation logic
         log.debug("Validating payment: sender={}, receiver={}, amount={}", senderVpa, receiverVpa, amount);
-        return true;
+        return senderVpa != null && receiverVpa != null && !senderVpa.equalsIgnoreCase(receiverVpa) &&
+                amount != null && amount.signum() > 0 && amount.scale() <= 2;
+    }
+
+    private Transaction requirePayment(String packetId, String packetHash, String senderVpa, String receiverVpa,
+                                       BigDecimal amount, String nonce, Long signedAt) {
+        Transaction payment = transactionRepository.findByPacketHash(packetHash)
+                .orElseThrow(() -> new IllegalArgumentException("Synchronized payment was not found"));
+        if (!payment.getPacketId().equals(packetId) || !payment.getSenderVpa().equalsIgnoreCase(senderVpa) ||
+                !payment.getReceiverVpa().equalsIgnoreCase(receiverVpa) || payment.getAmount().compareTo(amount) != 0 ||
+                !payment.getNonce().equals(nonce) || !payment.getSignedAt().equals(Instant.ofEpochMilli(signedAt)))
+            throw new IllegalArgumentException("Command does not match the synchronized payment");
+        return payment;
+    }
+
+    private void recordTransition(Transaction transaction, Transaction.Status to, String reason) {
+        lifecycleEvents.save(new PaymentLifecycleEvent(transaction.getPacketHash(),
+                transaction.getStatus().name(), to.name(), reason));
     }
 }

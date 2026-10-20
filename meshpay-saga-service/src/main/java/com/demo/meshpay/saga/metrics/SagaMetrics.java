@@ -4,9 +4,10 @@ import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
+import com.demo.meshpay.saga.repository.SagaStateRepository;
 import org.springframework.stereotype.Component;
 
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.List;
 
 /**
  * Custom metrics for Saga operations
@@ -16,7 +17,7 @@ import java.util.concurrent.atomic.AtomicLong;
 public class SagaMetrics {
 
     private final MeterRegistry meterRegistry;
-    private final AtomicLong activeSagas = new AtomicLong(0);
+    private static final List<String> TERMINAL_STATES = List.of("SAGA_COMPLETED", "SAGA_COMPENSATED", "SAGA_START_FAILED");
 
     // Counters
     private final Counter sagaStartedCounter;
@@ -26,7 +27,7 @@ public class SagaMetrics {
     // Timers
     private final Timer sagaExecutionTimer;
 
-    public SagaMetrics(MeterRegistry meterRegistry) {
+    public SagaMetrics(MeterRegistry meterRegistry, SagaStateRepository sagaStateRepository) {
         this.meterRegistry = meterRegistry;
 
         // Initialize counters
@@ -48,7 +49,7 @@ public class SagaMetrics {
                 .register(meterRegistry);
 
         // Initialize gauges
-        Gauge.builder("saga.active.count", activeSagas, AtomicLong::get)
+        Gauge.builder("saga.active.count", sagaStateRepository, repository -> repository.countByStateNotIn(TERMINAL_STATES))
                 .description("Number of active sagas")
                 .register(meterRegistry);
     }
@@ -76,15 +77,4 @@ public class SagaMetrics {
     }
 
     // Gauge update methods
-    public void incrementActiveSagas() {
-        activeSagas.incrementAndGet();
-    }
-
-    public void decrementActiveSagas() {
-        activeSagas.decrementAndGet();
-    }
-
-    public long getActiveSagas() {
-        return activeSagas.get();
-    }
 }

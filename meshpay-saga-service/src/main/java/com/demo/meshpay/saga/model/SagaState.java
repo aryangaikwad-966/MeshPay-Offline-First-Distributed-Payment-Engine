@@ -15,7 +15,7 @@ import lombok.NoArgsConstructor;
     @Index(name = "idx_saga_id", columnList = "sagaId"),
     @Index(name = "idx_packet_hash", columnList = "packetHash"),
     @Index(name = "idx_state", columnList = "state")
-})
+}, uniqueConstraints = @UniqueConstraint(name = "uk_saga_packet_hash", columnNames = "packet_hash"))
 @Data
 @Builder
 @NoArgsConstructor
@@ -45,6 +45,26 @@ public class SagaState {
 
     @Column
     private String failureReason;
+
+    @Column(name = "packet_id", length = 80)
+    private String packetId;
+
+    @Column(name = "sender_vpa", length = 160)
+    private String senderVpa;
+
+    @Column(name = "receiver_vpa", length = 160)
+    private String receiverVpa;
+
+    @Column(precision = 19, scale = 2)
+    private java.math.BigDecimal amount;
+
+    @Column(length = 3)
+    private String currency;
+
+    @Column(length = 128)
+    private String nonce;
+
+    private Long signedAt;
 
     @Column
     private String aggregateId;

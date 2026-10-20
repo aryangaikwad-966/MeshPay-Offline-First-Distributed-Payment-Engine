@@ -2,15 +2,19 @@ package com.demo.meshpay.payment.processor;
 
 import com.demo.meshpay.payment.model.Outbox;
 import com.demo.meshpay.payment.repository.OutboxRepository;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.beans.factory.annotation.Value;
+import io.micrometer.core.instrument.MeterRegistry;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import jakarta.annotation.PostConstruct;
 
 import java.time.Instant;
+import java.util.concurrent.TimeUnit;
 import java.util.List;
 
 /**
@@ -20,11 +24,25 @@ import java.util.List;
 @Component
 @RequiredArgsConstructor
 @Slf4j
+@ConditionalOnProperty(name = "meshpay.outbox.enabled", havingValue = "true", matchIfMissing = true)
 public class OutboxProcessor {
 
     private final OutboxRepository outboxRepository;
     private final KafkaTemplate<String, String> kafkaTemplate;
-    private final ObjectMapper objectMapper;
+    private final MeterRegistry meterRegistry;
+
+    @Value("${meshpay.outbox.max-retries:10}")
+    private int maxRetries;
+
+    @PostConstruct
+    void registerOutboxGauges() {
+        meterRegistry.gauge("meshpay.outbox.pending", outboxRepository, OutboxRepository::countByProcessedFalse);
+        meterRegistry.gauge("meshpay.outbox.deadletter", outboxRepository, OutboxRepository::countByDeadLetterTrue);
+        meterRegistry.gauge("meshpay.outbox.oldest.pending.seconds", outboxRepository, repository ->
+                repository.findFirstByProcessedFalseOrderByCreatedAtAsc()
+                        .map(entry -> Math.max(0, Instant.now().getEpochSecond() - entry.getCreatedAt().getEpochSecond()))
+                        .orElse(0L));
+    }
 
     /**
      * Process outbox events every 5 seconds
@@ -46,13 +64,18 @@ public class OutboxProcessor {
             for (Outbox outbox : unprocessedEvents) {
                 try {
                     // Publish event to Kafka
-                    String payloadJson = objectMapper.writeValueAsString(outbox.getPayload());
-                    kafkaTemplate.send(outbox.getTopic(), outbox.getPartitionKey(), payloadJson);
+                    boolean deadLetter = outbox.getRetryCount() >= maxRetries;
+                    String topic = deadLetter ? outbox.getTopic() + ".DLT" : outbox.getTopic();
+                    kafkaTemplate.send(topic, outbox.getPartitionKey(), outbox.getPayload())
+                            .get(10, TimeUnit.SECONDS);
 
                     // Mark as processed
                     outbox.setProcessed(true);
                     outbox.setProcessedAt(Instant.now());
+                    outbox.setDeadLetter(deadLetter);
                     outboxRepository.save(outbox);
+
+                    if (deadLetter) meterRegistry.counter("meshpay.outbox.deadletter.published").increment();
 
                     log.debug("Processed outbox event: eventId={}, topic={}", 
                         outbox.getEventId(), outbox.getTopic());
@@ -61,17 +84,15 @@ public class OutboxProcessor {
                     log.error("Failed to process outbox event: eventId={}", outbox.getEventId(), e);
                     
                     // Increment retry count
-                    outbox.setRetryCount(outbox.getRetryCount() + 1);
-                    outbox.setErrorMessage(e.getMessage());
+                    int retries = outbox.getRetryCount() + 1;
+                    outbox.setRetryCount(retries);
+                    String error = e.getClass().getSimpleName() + ": " + String.valueOf(e.getMessage());
+                    outbox.setErrorMessage(error.substring(0, Math.min(error.length(), 1000)));
+                    outbox.setNextAttemptAt(Instant.now().plusSeconds(Math.min(300, 1L << Math.min(retries, 8))));
                     outboxRepository.save(outbox);
-                    
-                    // If max retries exceeded, mark as failed
-                    if (outbox.getRetryCount() >= 3) {
-                        outbox.setProcessed(true);
-                        log.error("Outbox event failed after max retries: eventId={}", outbox.getEventId());
-                    }
-                    
-                    outboxRepository.save(outbox);
+                    meterRegistry.counter("meshpay.outbox.publish.failure").increment();
+                    log.warn("Outbox event publication failed; retained for retry: eventId={}, retryCount={}",
+                            outbox.getEventId(), retries);
                 }
             }
 
@@ -90,7 +111,7 @@ public class OutboxProcessor {
     @Transactional
     public void cleanupProcessedEvents() {
         try {
-            Instant cutoffTime = Instant.now().minusSeconds(86400); // 24 hours
+            Instant cutoffTime = Instant.now().minusSeconds(30L * 86400);
             int deletedCount = outboxRepository.deleteProcessedEventsBefore(cutoffTime);
             
             if (deletedCount > 0) {

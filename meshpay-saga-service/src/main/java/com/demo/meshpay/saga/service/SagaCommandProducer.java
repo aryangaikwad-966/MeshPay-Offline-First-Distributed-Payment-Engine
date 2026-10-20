@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Kafka producer for Saga commands to Payment Service
@@ -31,7 +32,7 @@ public class SagaCommandProducer {
     public void sendValidatePaymentCommand(ValidatePaymentCommand command) {
         try {
             String json = objectMapper.writeValueAsString(command);
-            kafkaTemplate.send(VALIDATE_PAYMENT_COMMAND_TOPIC, command.getSagaId(), json);
+            kafkaTemplate.send(VALIDATE_PAYMENT_COMMAND_TOPIC, command.getSagaId(), json).get(10, TimeUnit.SECONDS);
             log.info("Sent validate payment command: sagaId={}", command.getSagaId());
         } catch (Exception e) {
             log.error("Failed to send validate payment command: sagaId={}", command.getSagaId(), e);
@@ -45,7 +46,7 @@ public class SagaCommandProducer {
     public void sendRequestSettlementCommand(RequestSettlementCommand command) {
         try {
             String json = objectMapper.writeValueAsString(command);
-            kafkaTemplate.send(REQUEST_SETTLEMENT_COMMAND_TOPIC, command.getSagaId(), json);
+            kafkaTemplate.send(REQUEST_SETTLEMENT_COMMAND_TOPIC, command.getSagaId(), json).get(10, TimeUnit.SECONDS);
             log.info("Sent request settlement command: sagaId={}", command.getSagaId());
         } catch (Exception e) {
             log.error("Failed to send request settlement command: sagaId={}", command.getSagaId(), e);
@@ -59,7 +60,7 @@ public class SagaCommandProducer {
     public void sendCompleteSettlementCommand(CompleteSettlementCommand command) {
         try {
             String json = objectMapper.writeValueAsString(command);
-            kafkaTemplate.send(COMPLETE_SETTLEMENT_COMMAND_TOPIC, command.getSagaId(), json);
+            kafkaTemplate.send(COMPLETE_SETTLEMENT_COMMAND_TOPIC, command.getSagaId(), json).get(10, TimeUnit.SECONDS);
             log.info("Sent complete settlement command: sagaId={}", command.getSagaId());
         } catch (Exception e) {
             log.error("Failed to send complete settlement command: sagaId={}", command.getSagaId(), e);

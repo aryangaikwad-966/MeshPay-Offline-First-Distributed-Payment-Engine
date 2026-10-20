@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.stereotype.Repository;
+import org.springframework.data.repository.query.Param;
 
 import jakarta.persistence.LockModeType;
 import java.time.Instant;
@@ -36,8 +37,9 @@ public interface OutboxRepository extends JpaRepository<Outbox, Long> {
     /**
      * Find unprocessed outbox entries with limit for batch processing
      */
-    @Query("SELECT o FROM Outbox o WHERE o.processed = false ORDER BY o.createdAt ASC")
-    List<Outbox> findUnprocessedEventsForProcessing(int limit);
+    @Query(value = "SELECT * FROM outbox WHERE processed = false AND (next_attempt_at IS NULL OR next_attempt_at <= now()) " +
+            "ORDER BY created_at ASC LIMIT :batchSize FOR UPDATE SKIP LOCKED", nativeQuery = true)
+    List<Outbox> findUnprocessedEventsForProcessing(@Param("batchSize") int batchSize);
 
     /**
      * Find outbox entry by event ID
@@ -67,18 +69,21 @@ public interface OutboxRepository extends JpaRepository<Outbox, Long> {
      * Delete processed outbox entries older than specified time
      */
     @Modifying
-    @Query("DELETE FROM Outbox o WHERE o.processed = true AND o.processedAt < :cutoffTime")
+    @Query("DELETE FROM Outbox o WHERE o.processed = true AND o.deadLetter = false AND o.processedAt < :cutoffTime")
     void deleteProcessedOlderThan(Instant cutoffTime);
 
     /**
      * Delete processed outbox entries older than specified time (alternative name for processor)
      */
     @Modifying
-    @Query("DELETE FROM Outbox o WHERE o.processed = true AND o.processedAt < :cutoffTime")
+    @Query("DELETE FROM Outbox o WHERE o.processed = true AND o.deadLetter = false AND o.processedAt < :cutoffTime")
     int deleteProcessedEventsBefore(Instant cutoffTime);
 
     /**
      * Count unprocessed entries
      */
     long countByProcessedFalse();
+    long countByDeadLetterTrue();
+    java.util.Optional<Outbox> findFirstByProcessedFalseOrderByCreatedAtAsc();
+    java.util.List<Outbox> findTop100ByOrderByCreatedAtDesc();
 }

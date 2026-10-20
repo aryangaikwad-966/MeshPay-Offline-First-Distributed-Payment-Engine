@@ -1,433 +1,256 @@
-# MeshPay: Event-Driven Distributed Payment Infrastructure
+# MeshPay — Offline-First Distributed Payment Infrastructure
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![Java: 17+](https://img.shields.io/badge/Java-17+-orange.svg)](https://www.oracle.com/java/)
-[![Spring Boot: 3.3](https://img.shields.io/badge/Spring%20Boot-3.3-green.svg)](https://spring.io/projects/spring-boot)
-[![Spring Cloud: 2023.0](https://img.shields.io/badge/Spring%20Cloud-2023.0-blue.svg)](https://spring.io/projects/spring-cloud)
+### Secure delayed packet synchronization, durable idempotency, and event-driven recovery
 
-MeshPay is a microservices-based distributed payment system demonstrating event-driven architecture, Kafka-based inter-service communication, transactional outbox pattern for reliable event publishing, and Saga orchestration with persistent state management for distributed transaction coordination.
+MeshPay is a portfolio project for exploring a difficult distributed-systems problem: safely receiving delayed payment packets when clients reconnect, requests race or retry, and services fail between steps.
 
----
+The system combines signed and encrypted packets, PostgreSQL-backed correctness, Redis coordination, a transactional payment outbox, Kafka consumers, and a persisted Saga workflow. Its React dashboard reads live service data.
 
-## 🏗️ Architecture
+> **Scope:** MeshPay is a local engineering demonstration, not a banking ledger, payment processor, or production settlement system. `SETTLED` means the demo Saga completed its local workflow; no external money movement occurs.
 
-### Microservices
+| | |
+| --- | --- |
+| **Backend** | Java 17 · Spring Boot 3.3 · Spring Cloud |
+| **Data & messaging** | PostgreSQL 16 · Redis 7 · Kafka 3 / ZooKeeper |
+| **Web & operations** | React · TypeScript · Tailwind CSS · Prometheus · Grafana |
+| **Run locally** | Docker Compose · Maven Wrapper · JUnit 5 |
 
-MeshPay consists of the following microservices:
+## Contents
 
-| Service | Port | Description |
-|---------|------|-------------|
-| **API Gateway** | 8080 | Single entry point, routing, authentication |
-| **Payment Service** | 8081 | Payment processing, account management |
-| **Saga Service** | 8082 | Distributed transaction orchestration |
-| **Eureka Server** | 8761 | Service discovery and registration |
+- [What the project demonstrates](#what-the-project-demonstrates)
+- [Architecture](#architecture)
+- [Start locally](#start-locally)
+- [Configure packet keys](#configure-packet-keys)
+- [Packet protocol and security](#packet-protocol-and-security)
+- [APIs and dashboard](#apis-and-dashboard)
+- [Correctness and delivery semantics](#correctness-and-delivery-semantics)
+- [Observability](#observability)
+- [Tests and verification](#tests-and-verification)
+- [Limitations and next steps](#limitations-and-next-steps)
+- [Repository map](#repository-map)
 
-### Infrastructure
+## What the project demonstrates
 
-- **PostgreSQL 16** - Primary database for each service
-- **Redis 7** - Caching and distributed locking
-- **Apache Kafka 3.x** - Event-driven messaging
-- **Zookeeper** - Kafka coordination
+- **Delayed synchronization:** a client can prepare a packet while disconnected and submit it later. Server acceptance is distinct from settlement.
+- **Duplicate safety:** Redis `SET NX` is a fast coordination layer; PostgreSQL unique constraints remain the durable guard.
+- **Authenticated packet protection:** AES-256-GCM protects packet contents, RSA-OAEP wraps the one-time AES key, and RSA-PSS verifies the sender separately from encryption.
+- **Recoverable payment events:** payment state and its outbox row commit together; publication is at-least-once and consumers deduplicate.
+- **Persistent workflow state:** Saga state and transition history are stored in PostgreSQL and coordinated through Kafka.
+- **Operational visibility:** the dashboard, Prometheus, and Grafana use service data and metrics rather than demo fixtures.
 
-### Architecture Diagram
+## Architecture
 
+```mermaid
+flowchart LR
+    Client[Offline client / bridge] -->|signed encrypted packet| Gateway[API Gateway :8080]
+    Browser[React dashboard :3001] -->|live operations APIs| Payment[Payment Service :8081]
+    Browser -->|live Saga APIs| Saga[Saga Service :8082]
+    Gateway --> Payment
+    Gateway --> Saga
+    Payment -->|fast claim| Redis[(Redis)]
+    Payment -->|payment + lifecycle + outbox transaction| PayDB[(Payment PostgreSQL)]
+    Payment -->|outbox events / commands| Kafka[(Kafka)]
+    Kafka --> Saga
+    Saga -->|Saga state + history| SagaDB[(Saga PostgreSQL)]
+    Saga -->|workflow commands| Kafka
+    Kafka --> Payment
+    Eureka[Eureka :8761] -. discovery .-> Gateway
+    Payment -. discovery .-> Eureka
+    Saga -. discovery .-> Eureka
+    Prom[Prometheus :9090] --> Payment
+    Prom --> Saga
+    Prom --> Gateway
+    Grafana[Grafana :3000] --> Prom
 ```
-Client → API Gateway (8080) → Payment Service (8081) + Saga Service (8082)
-                                      ↓                    ↓
-                                  PostgreSQL (5433)     PostgreSQL (5434)
-                                      ↓                    ↓
-                                  Kafka (9092) ←─────────┘
-                                      ↓
-                                  Redis (6379)
-                                      ↓
-                              Eureka Server (8761)
+
+### Payment lifecycle
+
+```text
+created offline → synchronized → validated → settlement requested → settled locally
+                                              ↘ rejected / recovery path
 ```
 
----
+Offline creation is a client-side concept, not a server-confirmed payment state. The server validates the packet and durably records it before reporting synchronization success. `SETTLED` is the terminal state of this simulated workflow only.
 
-## 🚀 Getting Started
+### Local services
+
+| Service | Port | Responsibility |
+| --- | ---: | --- |
+| API Gateway | 8080 | Routes external HTTP requests to registered services |
+| Payment Service | 8081 | Packet verification, payment persistence, idempotency, outbox, metrics |
+| Saga Service | 8082 | Persistent orchestration, state transitions, history and event deduplication |
+| Eureka | 8761 | Service registry |
+| React dashboard | 3001 | Read-only operational views backed by service APIs |
+| Prometheus | 9090 | Scrapes service metrics |
+| Grafana | 3000 | Provisioned metrics dashboard |
+| Payment PostgreSQL | 5433 host | Durable payment, packet, lifecycle and outbox data |
+| Saga PostgreSQL | 5434 host | Durable Saga state, history and processed-event records |
+| Redis | 6379 | Short-lived idempotency coordination claims |
+| Kafka | 9092 host / 29092 Compose | Payment and Saga commands/events |
+
+## Start locally
 
 ### Prerequisites
 
-- Java 17 or higher
-- Docker & Docker Compose
-- Maven 3.8+
+- Docker Desktop with Docker Compose
+- Java 17 for Maven tests (the included wrapper downloads/uses Maven)
+- Node.js/npm only if you want to run or build the dashboard outside Docker
 
-### Quick Start with Docker Compose
-
-```bash
-# Start all services and infrastructure
-docker-compose up -d
-
-# View logs
-docker-compose logs -f
-
-# Stop services
-docker-compose down
-```
-
-### Manual Setup
-
-Start infrastructure services first, then run each microservice:
+### Start the stack
 
 ```bash
-# Terminal 1 - Eureka Server
-cd meshpay-eureka-server
-mvn spring-boot:run
-
-# Terminal 2 - Payment Service
-cd meshpay-payment-service
-mvn spring-boot:run
-
-# Terminal 3 - Saga Service
-cd meshpay-saga-service
-mvn spring-boot:run
-
-# Terminal 4 - API Gateway
-cd meshpay-api-gateway
-mvn spring-boot:run
+docker compose up --build -d
+docker compose ps
 ```
 
----
-
-## 📚 Services Documentation
-
-### API Gateway (Port 8080)
-
-**Health Check:**
-```bash
-curl http://localhost:8080/actuator/health
-```
-
-**Routes:**
-- `/api/payment/**` → Payment Service
-- `/api/saga/**` → Saga Service
-
-### Payment Service (Port 8081)
-
-**Health Check:**
-```bash
-curl http://localhost:8081/actuator/health
-```
-
-**API Endpoints:**
-- `POST /api/payment/validate` - Validate payment
-- `POST /api/payment/settlement` - Request settlement
-- `POST /api/payment/complete` - Complete settlement
-- `GET /api/payment/accounts` - List accounts
-- `GET /api/payment/transactions` - List transactions
-
-**Swagger UI:**
-```
-http://localhost:8081/swagger-ui/index.html
-```
-
-### Saga Service (Port 8082)
-
-**Health Check:**
-```bash
-curl http://localhost:8082/actuator/health
-```
-
-**API Endpoints:**
-- `POST /api/saga/start` - Start new saga
-- `POST /api/saga/validate` - Validate payment in saga
-- `POST /api/saga/settlement` - Request settlement in saga
-- `POST /api/saga/complete` - Complete settlement in saga
-- `GET /api/saga/status/{sagaId}` - Get saga status
-
-**Swagger UI:**
-```
-http://localhost:8082/swagger-ui/index.html
-```
-
-### Eureka Server (Port 8761)
-
-**Dashboard:**
-```
-http://localhost:8761
-```
-
----
-
-## 🔑 Key Patterns
-
-### Transactional Outbox Pattern
-
-Events are written to the outbox table in the same transaction as business data, ensuring reliable event publication with at-least-once delivery semantics:
-
-```java
-@Transactional
-public void processPayment(Payment payment) {
-    // Business logic
-    paymentRepository.save(payment);
-    
-    // Event in same transaction
-    outboxService.saveEvent(paymentEvent, "payment-validated", payment.getPacketHash());
-}
-```
-
-A scheduled processor publishes unprocessed events to Kafka every 5 seconds using pessimistic locking to prevent concurrent processing. Consumer-side idempotency ensures exactly-once processing.
-
-### Saga Pattern
-
-Distributed transactions are orchestrated using the Saga pattern with persistent state management:
-
-1. **Saga Start** - Initialize saga state in database
-2. **Payment Validation** - Validate payment details via Kafka command
-3. **Settlement Request** - Request settlement via Kafka command
-4. **Settlement Completion** - Finalize transaction via Kafka command
-5. **Compensation** - Rollback actions on failure
-
-Saga state is persisted to PostgreSQL to survive orchestrator crashes. Each step has defined compensation actions for failure recovery.
-
-### Event-Driven Architecture
-
-Services communicate via Kafka topics:
-
-- `saga-validate-payment-command` - Commands from Saga to Payment
-- `saga-request-settlement-command` - Settlement request commands
-- `saga-complete-settlement-command` - Completion commands
-- `payment-validated` - Validation completion events
-- `payment-settlement-requested` - Settlement request events
-- `payment-settled` - Final settlement events
-- `payment-failed` - Failure events
-- `saga-completed` - Saga completion events
-- `saga-failed` - Saga failure events
-
-### Idempotency & Duplicate Prevention
-
-Defense-in-depth approach prevents duplicate payment processing:
-
-1. **Redis SETNX** - Distributed idempotency using SHA-256 hash of ciphertext as tamper-proof key
-2. **Database Unique Constraints** - Unique constraint on packetHash in transactions table as fallback
-3. **Consumer-Side Idempotency** - EventProcessed table tracks processed Kafka events
-
-This ensures exactly-once payment settlement even under concurrent bridge node uploads.
-
----
-
-## 🔐 Security
-
-### Profile-Based Configuration
-
-**Dev Profile (default):**
-- Authentication disabled for testing
-- All endpoints permitted
-
-**Prod Profile:**
-- OAuth2 JWT validation enabled
-- Actuator, Swagger, and health endpoints public
-- All other endpoints require authentication
-
-### Configuration
-
-Set the profile in `application.yml` or environment variable:
-
-```yaml
-spring:
-  profiles:
-    active: prod
-```
-
-Or:
-```bash
-export SPRING_PROFILES_ACTIVE=prod
-```
-
----
-
-## 📊 Observability
-
-### Health Checks
-
-Each service exposes health endpoints:
+The payment service runs its Flyway migrations on startup. Named Docker volumes preserve database and monitoring data when containers are recreated. To stop the stack without deleting data:
 
 ```bash
-curl http://localhost:8081/actuator/health
-curl http://localhost:8082/actuator/health
+docker compose down
 ```
 
-### Metrics (Prometheus)
+To intentionally delete local databases, Kafka, Redis and monitoring data, use `docker compose down -v`. This is destructive and not needed for normal upgrades.
+
+### Open the application
+
+- Dashboard: [http://localhost:3001](http://localhost:3001)
+- API Gateway: [http://localhost:8080](http://localhost:8080)
+- Payment Swagger UI: [http://localhost:8081/swagger-ui.html](http://localhost:8081/swagger-ui.html)
+- Saga Swagger UI: [http://localhost:8082/swagger-ui.html](http://localhost:8082/swagger-ui.html)
+- Prometheus: [http://localhost:9090](http://localhost:9090)
+- Grafana: [http://localhost:3000](http://localhost:3000) (`admin` / `GRAFANA_ADMIN_PASSWORD`)
+- Eureka: [http://localhost:8761](http://localhost:8761)
+
+Compose uses the `dev` Spring profile and development-only defaults for local use. Do not expose this setup to the public internet. In particular, replace the sample database, Redis, and Grafana passwords before sharing the environment.
+
+## Configure packet keys
+
+Packet processing intentionally fails closed until the server key pair and a trusted sender key are configured. The recipient-key endpoint returns unavailable until a server public key is provisioned. No private keys are bundled in the repository.
+
+Place configuration in a local, ignored `.env` file (never commit real keys):
+
+| Variable | Required for packet sync | Format |
+| --- | --- | --- |
+| `MESHPAY_PACKET_RSA_PRIVATE_KEY` | Yes | Base64-encoded DER RSA PKCS#8 server private key |
+| `MESHPAY_PACKET_RSA_PUBLIC_KEY` | Yes | Base64-encoded DER X.509 server public key |
+| `MESHPAY_PACKET_TRUSTED_SIGNERS` | Yes | `senderVpa=base64(DER X.509 RSA public key)`; multiple entries separated by `;` |
+| `MESHPAY_PACKET_MAX_OFFLINE_AGE` | Optional | Maximum age, default `30d` |
+
+Other Compose variables include `DB_USER`, `DB_PASSWORD`, `REDIS_PASSWORD`, `REDIS_PORT`, and `GRAFANA_ADMIN_PASSWORD`. For a secured Spring profile, configure `SPRING_PROFILES_ACTIVE=prod`, `MESHPAY_JWKS_URI`, `MESHPAY_JWT_ISSUER`, and `MESHPAY_JWT_AUDIENCE`; operations and metrics endpoints also require the configured `meshpay:ops` or `meshpay:metrics:read` scope. Use a real identity provider and secret manager. Do not use the unauthenticated development profile in production.
+
+## Packet protocol and security
+
+The synchronization endpoint accepts the `PaymentPacketRequest` envelope. Its encrypted plaintext is the `DecryptedPaymentPacket` model. The sender signs a versioned, newline-delimited canonical envelope containing the protocol label, packet ID, normalized sender VPA, sender nonce, IV, wrapped AES key, and ciphertext.
+
+1. The client encrypts packet JSON with a fresh AES-256 key and AES-256-GCM.
+2. The client wraps the AES key with the server RSA public key using OAEP with SHA-256 and MGF1-SHA-256.
+3. The sender signs the canonical envelope using RSA-PSS/SHA-256.
+4. The service verifies sender trust and signature, unwraps/decrypts the payload, checks the GCM authentication tag, validates identity and packet time, then persists it.
+
+Encryption provides confidentiality and authenticated ciphertext; the separate RSA-PSS signature authenticates the sender. Neither encryption nor signature alone prevents replay. MeshPay additionally tracks sender-plus-nonce replay identity and canonical packet identity in PostgreSQL.
+
+This repository does not include a client wallet, secure hardware key storage, automated signer rotation, or a production key-management service. Key provisioning, private-key protection, signer onboarding/rotation, clock quality, and recipient-key distribution are operator responsibilities.
+
+## APIs and dashboard
+
+Primary APIs (see Swagger UI for request and response schemas):
+
+| Endpoint | Purpose |
+| --- | --- |
+| `POST /api/payment/packets/sync` | Verify and synchronize an encrypted packet; returns synchronized, duplicate, in-progress, or a sanitized rejection/error |
+| `GET /api/payment/packets/recipient-key` | Return the configured packet-encryption public key |
+| `GET /api/payment/ops/overview` | Payment and packet summary counters |
+| `GET /api/payment/ops/transactions` | Search/list durable payments |
+| `GET /api/payment/ops/transactions/{packetId-or-hash}` | Payment and lifecycle details |
+| `GET /api/payment/ops/attempts` | Synchronization/validation attempts |
+| `GET /api/payment/ops/outbox` | Outbox publication state |
+| `GET /api/saga/ops/overview` | Saga summary counters |
+| `GET /api/saga/ops/sagas` | Saga list and current states |
+| `GET /api/saga/ops/sagas/{sagaId}/history` | Persisted Saga transition history |
+| `GET /actuator/health` / `GET /actuator/prometheus` | Health and metrics endpoints |
+
+The React dashboard is read-only. It shows live overview, transaction/synchronization, and reliability information; errors and unavailable data are not displayed as zero. It does not expose private key material or offer retry/replay/admin actions.
+
+## Correctness and delivery semantics
+
+### Idempotency
+
+Payment identity is a SHA-256 hash of a versioned canonical plaintext identity (packet ID, normalized parties, canonical amount/currency, signed time, and nonce). Replay identity is sender plus nonce. Redis `SET NX` with an expiring claim reduces duplicate work; it is not the source of truth. PostgreSQL unique constraints on the canonical packet hash and sender/nonce prevent duplicate durable records if requests race, Redis expires, or Redis is unavailable.
+
+The payment row, lifecycle record, and synchronization outbox row commit in one local database transaction. A duplicate does not create a second payment or synchronization event. These guarantees apply within the defined database and handlers; MeshPay does not claim global exactly-once processing.
+
+### Outbox and Kafka
+
+The Payment Service claims due outbox rows with PostgreSQL `SKIP LOCKED`, waits for Kafka broker acknowledgment before marking publication, and retries with bounded exponential delay. After its configured retry limit it sends the event to a `.DLT` topic. A crash after broker acknowledgment but before the database update may publish the same event again; consumers are expected to deduplicate, so delivery is at-least-once.
+
+Consumers record processed event/command identifiers alongside relevant business state. Listener retries are bounded and repeated failures are routed to dead-letter topics. Dead-letter inspection and replay are manual; no operator recovery console is included.
+
+### Saga boundaries
+
+Saga state and transition history persist in the Saga database. Its local workflow requests validation, requests settlement, and processes local completion/compensation states. Compensation changes MeshPay's local workflow only; it cannot reverse an external financial transfer.
+
+**Known recovery gap:** Saga command publication is synchronous to Kafka acknowledgment but is not backed by a transactional Saga outbox. A process crash after a Saga database commit and before command publication can require operator recovery. This is not hidden behind an exactly-once claim.
+
+## Observability
+
+Prometheus scrapes Payment, Saga, and Gateway Actuator metrics. Custom bounded-cardinality packet, outbox, and Saga metrics are available; the provisioned Grafana dashboard is under `monitoring/grafana/`. No unique payment or packet identifiers are metric labels.
+
+Micrometer OpenTelemetry instrumentation and sampling are configured, but trace propagation/export to a collector has not been verified end-to-end. Local Compose metrics are exposed for development; production deployments need network isolation and appropriate authentication.
+
+## Tests and verification
+
+Run backend tests on Java 17:
 
 ```bash
-curl http://localhost:8081/actuator/prometheus
-curl http://localhost:8082/actuator/prometheus
+export JAVA_HOME="$(/usr/libexec/java_home -v 17)"  # macOS; set JAVA_HOME to your JDK 17 elsewhere
+./mvnw -f meshpay-payment-service/pom.xml clean test
+./mvnw -f meshpay-saga-service/pom.xml clean test
+./mvnw -f meshpay-api-gateway/pom.xml clean test
+./mvnw -f meshpay-eureka-server/pom.xml clean test
 ```
 
-### Distributed Tracing (OpenTelemetry)
-
-Services are configured for distributed tracing with OpenTelemetry:
-
-- **Sampling Probability**: 1.0 (100% for development)
-- **OTLP Exporter**: Configured for Jaeger/Tempo compatibility
-- **Service Names**: Unique per service for trace correlation
-
-Tracing provides visibility into request flows across service boundaries.
-
-### Custom Metrics
-
-- Payment validation count
-- Settlement success/failure rates
-- Saga completion rates
-- Active saga count
-- Outbox processing metrics
-
-### Resilience Patterns
-
-**Circuit Breakers:**
-- Payment Service: Circuit breaker for saga service calls
-- Saga Service: Circuit breaker for payment service calls
-- API Gateway: Circuit breakers for both services
-- Configured with 50% failure rate threshold, 10s wait duration
-
-**Retry Configuration:**
-- Automatic retry with 3 max attempts
-- 1s wait duration between retries
-- Exponential backoff for transient failures
-
-**Service Discovery:**
-- Eureka Server for dynamic service registration
-- Gateway discovers services via service names
-- Health monitoring and load balancing support
-
----
-
-## 🛠️ Development
-
-### Project Structure
-
-```
-Meshpay/
-├── meshpay-api-gateway/
-│   ├── src/main/java/com/demo/meshpay/gateway/
-│   └── pom.xml
-├── meshpay-payment-service/
-│   ├── src/main/java/com/demo/meshpay/payment/
-│   │   ├── config/
-│   │   ├── controller/
-│   │   ├── model/
-│   │   ├── repository/
-│   │   ├── service/
-│   │   ├── processor/
-│   │   └── PaymentServiceApplication.java
-│   └── pom.xml
-├── meshpay-saga-service/
-│   ├── src/main/java/com/demo/meshpay/saga/
-│   │   ├── config/
-│   │   ├── controller/
-│   │   ├── consumer/
-│   │   ├── events/
-│   │   ├── model/
-│   │   ├── repository/
-│   │   ├── service/
-│   │   ├── processor/
-│   │   └── SagaServiceApplication.java
-│   └── pom.xml
-├── meshpay-eureka-server/
-│   ├── src/main/java/com/demo/meshpay/eureka/
-│   │   └── EurekaServerApplication.java
-│   └── pom.xml
-├── docker-compose.yml
-├── test-microservices.sh
-└── README.md
-```
-
-### Building
+Build/audit the dashboard:
 
 ```bash
-# Build all services
-cd meshpay-payment-service && mvn clean package
-cd ../meshpay-saga-service && mvn clean package
-cd ../meshpay-api-gateway && mvn clean package
-cd ../meshpay-eureka-server && mvn clean package
+cd meshpay-dashboard
+npm ci
+npm run build
+npm audit
 ```
 
-### Testing
+### Verified on 2026-10-21
 
-```bash
-# Run integration tests
-cd meshpay-payment-service && mvn test
-cd ../meshpay-saga-service && mvn test
+- Payment `clean test`: build passed; 4 cryptography unit tests passed. The Testcontainers concurrency test was skipped because the Java test process could not access Docker Desktop's socket.
+- Saga, Gateway, and Eureka `clean test`: all builds passed; these modules currently contain no automated tests.
+- Dashboard dependency install, production build, and npm audit passed; zero vulnerabilities were reported.
+- Payment, Saga, and dashboard Docker images rebuilt; all Compose services started, and Payment/Saga reported healthy. Flyway validated and applied the payment lifecycle migrations against the existing database.
+- HTTP checks: Payment, Saga, and Gateway health returned `UP`; dashboard and proxied Payment overview returned HTTP 200. With temporary test keys removed, the recipient-key endpoint correctly returned HTTP 503.
+- A live signed/encrypted packet was submitted concurrently 24 times through the Compose stack: 1 `SYNCHRONIZED` (201), 7 `DUPLICATE` (200), 16 `IN_PROGRESS` (202). PostgreSQL contained one durable payment and one synchronization outbox event; Kafka drove one persisted Saga to `SAGA_COMPLETED` and the local workflow to `SETTLED`.
+
+The live concurrency run is evidence for that run, not a performance benchmark or a substitute for running the Testcontainers test in an environment where its JVM can reach Docker. `test-microservices.sh` is a legacy smoke script; it does not provision packet keys or test signed packet synchronization.
+
+## Limitations and next steps
+
+- No real payment rail, external settlement adapter, or monetary ledger.
+- No offline wallet/client implementation; this project demonstrates server-side delayed packet synchronization.
+- No production key-management service, automated key rotation, or trust-registry onboarding workflow.
+- Saga command outbox/recovery is not transactional; dead-letter recovery requires manual operation.
+- Testcontainers execution, broad Kafka/DB failure injection, dashboard component tests, and end-to-end OpenTelemetry export remain to be completed.
+- Hibernate `ddl-auto: update` remains enabled. Payment lifecycle migrations exist, but a fully migration-managed schema and validate-only mode are future work.
+- Compose's `dev` profile and sample passwords are for local development only; this project is not production-hardened or compliance-certified.
+
+## Repository map
+
+```text
+meshpay-api-gateway/       Gateway and routing
+meshpay-eureka-server/     Service registry
+meshpay-payment-service/   Packet security, payment persistence, idempotency, outbox
+meshpay-saga-service/      Saga orchestration, history, event deduplication
+meshpay-dashboard/         React + TypeScript operations dashboard
+monitoring/                Prometheus and Grafana provisioning
+docker-compose.yml         Local multi-service environment
 ```
 
-### End-to-End Testing
+## License
 
-```bash
-# Run the test script
-./test-microservices.sh
-```
-
-This script:
-- Starts all services via Docker Compose
-- Verifies service health
-- Tests Eureka registration
-- Tests API Gateway routing
-- Verifies Kafka topics
-- Tests basic API endpoints
-
----
-
-## 🔧 Configuration
-
-### Environment Variables
-
-Key environment variables can be set in `docker-compose.yml`:
-
-```yaml
-environment:
-  - SPRING_PROFILES_ACTIVE=prod
-  - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/meshpay_payment
-  - SPRING_REDIS_HOST=redis
-  - SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
-```
-
-### Database Configuration
-
-Each service has its own database:
-
-- **Payment Service**: `meshpay_payment` (port 5433)
-- **Saga Service**: `meshpay_saga` (port 5434)
-
----
-
-## 📝 Technical Stack
-
-- **Java**: 17
-- **Spring Boot**: 3.3.5
-- **Spring Cloud**: 2023.0.3
-- **Spring Cloud Gateway**: 4.1.x
-- **Spring Cloud Netflix Eureka**: 4.1.x
-- **PostgreSQL**: 16
-- **Redis**: 7
-- **Kafka**: 3.x
-- **Resilience4j**: 2.1.0
-- **Lombok**: 1.18.30
-- **Maven**: 3.8+
-
----
-
-## 🐛 Troubleshooting
-
-**Service won't start:**
-```bash
-docker-compose ps                    # Check infrastructure status
-docker-compose logs payment-service # Check service logs
-```
-
-**Kafka issues:**
-```bash
-docker-compose exec kafka kafka-topics --bootstrap-server localhost:9092 --list
-```
-
-**Service discovery:**
-```bash
-curl http://localhost:8761/eureka/apps  # Check Eureka registration
-```
-
----
-
-<div align="center">
-  <h3>MeshPay Microservices Architecture</h3>
-  <p>Event-driven distributed payment infrastructure with Saga orchestration</p>
-</div>
+No license is currently specified. Add a license file before redistribution or reuse.

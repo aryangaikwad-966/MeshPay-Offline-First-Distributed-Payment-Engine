@@ -88,13 +88,19 @@ public class Outbox {
      * Whether this event has been successfully published to Kafka
      */
     @Column(nullable = false)
+    @Builder.Default
     private Boolean processed = false;
 
     /**
      * Number of retry attempts
      */
     @Column(nullable = false)
+    @Builder.Default
     private Integer retryCount = 0;
+
+    @Column(nullable = false)
+    @Builder.Default
+    private Boolean deadLetter = false;
 
     /**
      * Error message if processing failed
@@ -106,6 +112,7 @@ public class Outbox {
      * When this outbox entry was created
      */
     @Column(nullable = false, updatable = false)
+    @Builder.Default
     private Instant createdAt = Instant.now();
 
     /**
@@ -113,9 +120,22 @@ public class Outbox {
      */
     private Instant processedAt;
 
+    @Column(name = "next_attempt_at")
+    @Builder.Default
+    private Instant nextAttemptAt = Instant.now();
+
     /**
      * Schema version for event evolution
      */
     @Column(length = 50)
     private String schemaVersion;
+
+    @PrePersist
+    protected void initializeDeliveryState() {
+        if (createdAt == null) createdAt = Instant.now();
+        if (nextAttemptAt == null) nextAttemptAt = Instant.now();
+        if (retryCount == null) retryCount = 0;
+        if (processed == null) processed = false;
+        if (deadLetter == null) deadLetter = false;
+    }
 }

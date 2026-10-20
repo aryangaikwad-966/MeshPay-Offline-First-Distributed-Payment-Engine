@@ -1,48 +1,58 @@
 package com.demo.meshpay.saga.config;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
+import org.springframework.security.oauth2.core.OAuth2Error;
+import org.springframework.security.oauth2.core.OAuth2TokenValidator;
+import org.springframework.security.oauth2.core.OAuth2TokenValidatorResult;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.JwtValidators;
+import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.web.SecurityFilterChain;
 
-/**
- * Security configuration for Saga Service
- * Configures OAuth2 JWT validation and endpoint security
- */
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
-
     @Bean
-    @Profile("!prod")
-    public SecurityFilterChain devSecurityFilterChain(HttpSecurity http) throws Exception {
-        http
-            .csrf(AbstractHttpConfigurer::disable)
-            .authorizeHttpRequests(auth -> auth
-                .anyRequest().permitAll()
-            );
-
-        return http.build();
+    @Profile("dev")
+    SecurityFilterChain developmentSecurity(HttpSecurity http) throws Exception {
+        return http.csrf(AbstractHttpConfigurer::disable)
+                .authorizeHttpRequests(auth -> auth.anyRequest().permitAll()).build();
     }
 
     @Bean
-    @Profile("prod")
-    public SecurityFilterChain prodSecurityFilterChain(HttpSecurity http) throws Exception {
-        http
-            .csrf(AbstractHttpConfigurer::disable)
-            .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/actuator/**").permitAll()
-                .requestMatchers("/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
-                .requestMatchers("/api/saga/health").permitAll()
-                .anyRequest().authenticated()
-            )
-            .oauth2ResourceServer(oauth2 -> oauth2
-                .jwt(jwt -> jwt.jwkSetUri(System.getenv().getOrDefault("OAUTH2_JWKS_URI", "https://auth-server.example.com/.well-known/jwks.json")))
-            );
+    @Profile("!dev")
+    SecurityFilterChain securedSecurity(HttpSecurity http) throws Exception {
+        return http.csrf(AbstractHttpConfigurer::disable)
+                .authorizeHttpRequests(auth -> auth
+                        .requestMatchers("/actuator/health", "/actuator/health/**", "/api/saga/health").permitAll()
+                        .requestMatchers("/actuator/prometheus").hasAuthority("SCOPE_meshpay:metrics:read")
+                        .requestMatchers("/api/saga/ops/**").hasAuthority("SCOPE_meshpay:ops")
+                        .requestMatchers("/actuator/**").hasAuthority("SCOPE_meshpay:ops")
+                        .anyRequest().authenticated())
+                .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> {})).build();
+    }
 
-        return http.build();
+    @Bean
+    @Profile("!dev")
+    JwtDecoder jwtDecoder(@Value("${MESHPAY_JWKS_URI:}") String jwksUri,
+                          @Value("${MESHPAY_JWT_ISSUER:}") String issuer,
+                          @Value("${MESHPAY_JWT_AUDIENCE:}") String audience) {
+        if (jwksUri.isBlank() || issuer.isBlank() || audience.isBlank())
+            throw new IllegalStateException("MESHPAY_JWKS_URI, MESHPAY_JWT_ISSUER, and MESHPAY_JWT_AUDIENCE are required outside the dev profile");
+        NimbusJwtDecoder decoder = NimbusJwtDecoder.withJwkSetUri(jwksUri).build();
+        OAuth2TokenValidator<Jwt> issuerValidator = JwtValidators.createDefaultWithIssuer(issuer);
+        OAuth2TokenValidator<Jwt> audienceValidator = token -> token.getAudience().contains(audience)
+                ? OAuth2TokenValidatorResult.success()
+                : OAuth2TokenValidatorResult.failure(new OAuth2Error("invalid_token", "Required audience is missing", null));
+        decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(issuerValidator, audienceValidator));
+        return decoder;
     }
 }
