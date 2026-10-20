@@ -40,7 +40,7 @@ public class SecurityConfig {
                 .anyRequest().authenticated()
             )
             .oauth2ResourceServer(oauth2 -> oauth2
-                .jwt(jwt -> jwt.jwkSetUri("http://localhost:8080/.well-known/jwks.json"))
+                .jwt(jwt -> jwt.jwkSetUri(System.getenv().getOrDefault("OAUTH2_JWKS_URI", "https://auth-server.example.com/.well-known/jwks.json")))
             );
 
         return http.build();

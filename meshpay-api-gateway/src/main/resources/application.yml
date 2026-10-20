@@ -5,6 +5,8 @@ spring:
   application:
     name: api-gateway
   cloud:
+    compatibility-verifier:
+      enabled: false
     gateway:
       discovery:
         locator:
@@ -30,7 +32,7 @@ spring:
 eureka:
   client:
     service-url:
-      defaultZone: http://localhost:8761/eureka/
+      defaultZone: ${EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE:http://localhost:8761/eureka/}
   instance:
     prefer-ip-address: true
 
@@ -50,7 +52,14 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,gateway
+        include: health,metrics,prometheus,info,gateway
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+  tracing:
+    sampling:
+      probability: 1.0
 
 logging:
   level:

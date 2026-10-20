@@ -24,7 +24,8 @@ public class CorsConfig {
         config.setAllowCredentials(true);
         
         // Allowed origins (configure via environment variable in production)
-        String allowedOrigins = System.getenv().getOrDefault("CORS_ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:8080");
+        String allowedOriginsEnv = System.getenv("CORS_ALLOWED_ORIGINS");
+        String allowedOrigins = allowedOriginsEnv != null ? allowedOriginsEnv : "http://localhost:3000,http://localhost:8080";
         List<String> origins = Arrays.asList(allowedOrigins.split(","));
         config.setAllowedOrigins(origins);
         
