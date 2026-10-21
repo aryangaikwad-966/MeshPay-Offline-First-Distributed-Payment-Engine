@@ -57,7 +57,6 @@ public class Outbox {
      * The event payload as JSON
      */
     @Column(nullable = false, columnDefinition = "TEXT")
-    @Lob
     private String payload;
 
     /**

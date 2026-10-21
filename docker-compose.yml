@@ -2,7 +2,7 @@ services:
   # PostgreSQL Database for Payment Service
   postgres-payment:
     image: postgres:16-alpine
-    container_name: meshpay-postgres-payment
+    container_name: meshpay-engine-postgres-payment
     environment:
       POSTGRES_DB: meshpay_payment
       POSTGRES_USER: ${DB_USER:-meshpay}
@@ -22,7 +22,7 @@ services:
   # PostgreSQL Database for Saga Service
   postgres-saga:
     image: postgres:16-alpine
-    container_name: meshpay-postgres-saga
+    container_name: meshpay-engine-postgres-saga
     environment:
       POSTGRES_DB: meshpay_saga
       POSTGRES_USER: ${DB_USER:-meshpay}
@@ -42,7 +42,7 @@ services:
   # Redis Cache (for distributed idempotency)
   redis:
     image: redis:7-alpine # redis image
-    container_name: meshpay-redis
+    container_name: meshpay-engine-redis
     command: redis-server --requirepass ${REDIS_PASSWORD:-changeme} --maxmemory 512mb --maxmemory-policy allkeys-lru
     ports:
       - "127.0.0.1:${REDIS_PORT:-6379}:6379"
@@ -59,7 +59,7 @@ services:
   # Zookeeper (required for Kafka)
   zookeeper:
     image: confluentinc/cp-zookeeper:7.5.0
-    container_name: meshpay-zookeeper
+    container_name: meshpay-engine-zookeeper
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
@@ -74,7 +74,7 @@ services:
   # Kafka (event-driven architecture)
   kafka:
     image: confluentinc/cp-kafka:7.5.0
-    container_name: meshpay-kafka
+    container_name: meshpay-engine-kafka
     depends_on:
       - zookeeper
     ports:
@@ -104,7 +104,7 @@ services:
     build:
       context: ./meshpay-eureka-server
       dockerfile: Dockerfile
-    container_name: meshpay-eureka-server
+    container_name: meshpay-engine-eureka-server
     ports:
       - "127.0.0.1:8761:8761"
     networks:
@@ -120,11 +120,11 @@ services:
     build:
       context: ./meshpay-api-gateway
       dockerfile: Dockerfile
-    container_name: meshpay-api-gateway
+    container_name: meshpay-engine-api-gateway
     ports:
       - "127.0.0.1:8080:8080"
     environment:
-      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
       EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://eureka-server:8761/eureka/
       MESHPAY_JWKS_URI: ${MESHPAY_JWKS_URI:-}
       MESHPAY_JWT_ISSUER: ${MESHPAY_JWT_ISSUER:-}
@@ -145,12 +145,12 @@ services:
     build:
       context: ./meshpay-payment-service
       dockerfile: Dockerfile
-    container_name: meshpay-payment-service
+    container_name: meshpay-engine-payment-service
     ports:
       - "127.0.0.1:8081:8081"
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-payment:5432/meshpay_payment
-      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
       SPRING_DATASOURCE_USERNAME: ${DB_USER:-meshpay}
       SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-changeme}
       SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.postgresql.Driver
@@ -191,12 +191,12 @@ services:
     build:
       context: ./meshpay-saga-service
       dockerfile: Dockerfile
-    container_name: meshpay-saga-service
+    container_name: meshpay-engine-saga-service
     ports:
       - "127.0.0.1:8082:8082"
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-saga:5432/meshpay_saga
-      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
       SPRING_DATASOURCE_USERNAME: ${DB_USER:-meshpay}
       SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-changeme}
       SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.postgresql.Driver
@@ -228,7 +228,7 @@ services:
 
   prometheus:
     image: prom/prometheus:v2.54.1
-    container_name: meshpay-prometheus
+    container_name: meshpay-engine-prometheus
     command:
       - --config.file=/etc/prometheus/prometheus.yml
       - --storage.tsdb.path=/prometheus
@@ -247,7 +247,7 @@ services:
 
   grafana:
     image: grafana/grafana:11.2.2
-    container_name: meshpay-grafana
+    container_name: meshpay-engine-grafana
     environment:
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-dev-only-change-me}
       GF_USERS_ALLOW_SIGN_UP: "false"
@@ -267,7 +267,7 @@ services:
     build:
       context: ./meshpay-dashboard
       dockerfile: Dockerfile
-    container_name: meshpay-dashboard
+    container_name: meshpay-engine-dashboard
     ports:
       - "127.0.0.1:3001:80"
     depends_on:

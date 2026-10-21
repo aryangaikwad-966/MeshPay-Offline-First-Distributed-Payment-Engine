@@ -11,7 +11,7 @@ MeshPay explores how a backend can safely accept delayed payment packets when cl
 | Area | Technologies |
 | --- | --- |
 | Services | Java 17, Spring Boot 3.3, Spring Cloud, Maven Wrapper |
-| Persistence and coordination | PostgreSQL 16, Redis 7, Flyway for payment lifecycle migrations |
+| Persistence and coordination | PostgreSQL 16, Redis 7, Flyway migrations for Payment and Saga |
 | Messaging | Apache Kafka 3, ZooKeeper |
 | Packet security | AES-256-GCM, RSA-OAEP, RSA-PSS |
 | Dashboard | React, TypeScript, Tailwind CSS, Nginx |
@@ -42,15 +42,15 @@ MeshPay explores how a backend can safely accept delayed payment packets when cl
 
 | Capability | Audit result |
 | --- | --- |
-| Delayed packet ingestion | Browser client source now creates Web Crypto packets and persists envelopes in IndexedDB with stable identity and retry/reconnect logic. TypeScript build and browser reload/service E2E remain unverified because npm dependencies could not be fetched in this environment. |
+| Delayed packet ingestion | Browser client creates Web Crypto packets and persists envelopes in IndexedDB with stable identity and retry/reconnect logic. The production TypeScript build passes; real browser reload and service E2E remain unverified. |
 | Packet cryptography | RSA-OAEP/SHA-256 key unwrap, AES-GCM authentication, RSA-PSS/SHA-256 sender verification are implemented. Four cryptography unit tests passed. |
 | Idempotency | Redis `SET NX` is used as a short-lived coordination claim; PostgreSQL unique constraints are the durable guard. Redis failure falls back to PostgreSQL. |
-| Concurrent duplicates | A 24-request Testcontainers test exists but was skipped in the recorded run because its JVM could not reach Docker. A separate live Compose run on 2026-10-21 recorded one durable payment, one synchronization outbox event, and one completed Saga. This is a single correctness demonstration, not a benchmark. |
+| Concurrent duplicates | The 24-request Testcontainers test passed in the final Docker-enabled Java run. A separate live Compose run recorded one durable effect for repeated identical packet submissions. This is correctness evidence, not a benchmark. |
 | Payment outbox | Implemented for Payment Service. Rows are claimed with `SKIP LOCKED`, published with broker acknowledgment, retried, and eventually sent to a DLT. Failure recovery has not been comprehensively tested. |
 | Saga | State, transition history, and outgoing command records are persisted. The database row lock coordinates publishers; delivery is at least once and consumer-side command deduplication remains required. Compensation changes local workflow state only. |
-| Dashboard | Three operational read-only views plus an IndexedDB offline client are implemented in source. No production login integration or operator recovery controls are included. |
-| Service authentication | Payment, Saga, and Gateway enforce JWT issuer/audience and scope rules outside the `dev` profile. Filter tests cover anonymous, insufficient-scope, and authorized cases; validation against a real identity provider is not verified. |
-| Metrics and tracing | Prometheus scrape targets, application metrics, Grafana provisioning, and OpenTelemetry dependencies/configuration exist. Live scrape/panel population and trace export have not been verified end to end. |
+| Dashboard | Three operational read-only views plus an IndexedDB offline client are implemented. Packet-state handling is hardened, but browser offline/reload/reconnect acceptance remains unverified. No production login or operator recovery controls are included. |
+| Service authentication | Payment, Saga, and Gateway have local signed-JWT/JWKS integration tests for signature, issuer, audience, expiry, and scope behavior. A production identity provider and dashboard login are not configured. |
+| Metrics and tracing | Live Prometheus targets returned `up=1`; Grafana's provisioned dashboard API reported five panels and twelve queries. OpenTelemetry export/propagation remains unverified; Compose has no collector configured. |
 
 ## Architecture
 
@@ -135,7 +135,7 @@ docker compose up --build -d
 docker compose ps
 ```
 
-The payment service applies Flyway migrations at startup. Compose named volumes preserve local state when containers are recreated.
+Payment and Saga apply versioned Flyway migrations at startup and run Hibernate in schema-validation mode. Existing databases without Flyway history are baselined and retained; the migration creates any missing tables and indexes. Back up both PostgreSQL databases before an upgrade and verify the backup can be restored. Flyway DDL rollback is not automatic: recovery from a failed migration should restore the backup or use a reviewed forward migration. Compose named volumes are preserved when containers are recreated.
 
 To stop without deleting local data:
 
@@ -170,11 +170,11 @@ Swagger is available without authentication in the Compose `dev` profile. In a s
 
 ## Environment variables and packet key configuration
 
-Compose defaults to `SPRING_PROFILES_ACTIVE=dev`, where Payment, Saga, and Gateway permit unauthenticated requests. Defaults such as `changeme` and `dev-only-change-me` are for local use only; do not expose this configuration publicly. Published Compose ports bind to `127.0.0.1`. Compose reads a root `.env` file, which is ignored by `.gitignore`; copy `.env.example` to `.env` and replace local placeholders as needed.
+Compose defaults to the secured `prod` profile and fails closed unless the JWT issuer, audience, and JWKS URI are configured. The checked-in `.env.example` explicitly selects `dev` for local demonstrations; in that profile Payment, Saga, and Gateway permit unauthenticated requests. Defaults such as `changeme` and `dev-only-change-me` are local-only; do not expose this configuration publicly. Published Compose ports bind to `127.0.0.1`. Compose reads a root `.env` file, which is ignored by `.gitignore`; copy `.env.example` to `.env` only for local development and replace its placeholders.
 
 | Variable | Compose behavior / format |
 | --- | --- |
-| `SPRING_PROFILES_ACTIVE` | Defaults to `dev`; use a secured profile only after configuring JWT settings. |
+| `SPRING_PROFILES_ACTIVE` | Defaults to `prod`; `.env.example` selects `dev` for local development only. |
 | `DB_USER`, `DB_PASSWORD` | PostgreSQL credentials; defaults are `meshpay` / `changeme`. |
 | `REDIS_PASSWORD`, `REDIS_PORT` | Redis password and host port; defaults are `changeme` / `6379`. Container-to-container port remains 6379. |
 | `GRAFANA_ADMIN_PASSWORD` | Grafana `admin` password; defaults to `dev-only-change-me`. |
@@ -200,9 +200,9 @@ openssl pkcs8 -topk8 -nocrypt -in .local-keys/signer-private.pem -outform DER | 
 openssl pkey -in .local-keys/signer-public.pem -pubin -outform DER | base64 | tr -d '\n' > .local-keys/signer-public.spki.b64
 ```
 
-Copy the Base64 contents of the recipient private/public files into the matching `MESHPAY_PACKET_RSA_*` variables, and configure `MESHPAY_PACKET_TRUSTED_SIGNERS` as `senderVpa=<signer-public.spki.b64 contents>`. Restart Payment Service, open the dashboard while online to cache the recipient public key, and import `signer-private.pkcs8.b64` into the Offline Client. These keys are demo credentials, not managed or rotated keys. The current packet format has no key ID; signer changes require coordinated trusted-key replacement and handling of already queued packets.
+Copy the Base64 contents of the recipient private/public files into the matching `MESHPAY_PACKET_RSA_*` variables, and configure `MESHPAY_PACKET_TRUSTED_SIGNERS` as `senderVpa=<signer-public.spki.b64 contents>`. Or, when using the documented local `.local-keys` pair, start Compose through `scripts/compose-with-demo-packet-keys.sh`; it adds the `alice@meshpay.local` local signer to existing trusted-signer mappings without editing `.env`. Open the dashboard while online to cache the recipient public key, then import `signer-private.pkcs8.b64` into the Offline Client and use sender `alice@meshpay.local`. The packet-generation helper reads these ignored files and contains no embedded private key. These keys are demo credentials, not managed or rotated keys. The current packet format has no key ID; signer changes require coordinated trusted-key replacement and handling of already queued packets.
 
-Outside `dev`, Payment, Saga, and Gateway require JWT authentication on protected routes and validate configured issuer, audience, and standard token time claims. Operations and metrics routes enforce `meshpay:ops` / `meshpay:metrics:read` scopes. Filter behavior is covered by tests using mocked JWT principals; integration with an actual identity provider and signed token/JWKS rotation is unverified. The dashboard has no token/session integration, so it is intended for the local dev profile unless an authenticated proxy is added. Direct service ports are bound locally by Compose, but non-local deployments still need network policy, TLS, secret management, and hardened operational access.
+Outside `dev`, Payment, Saga, and Gateway require JWT authentication on protected routes and validate configured issuer, audience, and standard token time claims. Operations and metrics routes enforce `meshpay:ops` / `meshpay:metrics:read` scopes. All three services now have integration tests using real signed JWTs and ephemeral local JWKS endpoints. No production identity provider is configured. The dashboard has no token/session integration, so it is intended for the local dev profile unless an authenticated proxy is added. Direct service ports are bound locally by Compose, but non-local deployments still need network policy, TLS, secret management, and hardened operational access.
 
 ## Security and packet protocol
 
@@ -243,9 +243,11 @@ Swagger/OpenAPI is the request-schema reference for the service endpoints.
 
 ## Dashboard
 
-The React + TypeScript dashboard is served by Nginx on port 3001 and proxies API requests directly to Payment and Saga. Its views are Overview, Transactions, Reliability, and Offline Client. Data refreshes every 15 seconds, and loading/error/empty states distinguish unavailable data from a real zero.
+The React + TypeScript dashboard is served by Nginx on port 3001 and proxies API requests directly to Payment and Saga. Its views are Overview, Transactions, Reliability, and Offline Client. Data refreshes every 15 seconds, and loading/error/empty states distinguish unavailable data from a real zero. A service worker caches only the static dashboard shell and same-origin assets for offline reload; API and health responses are explicitly excluded from its cache.
 
 The operational views show aggregate counters, recent transactions with client-side ID/hash search, recent Saga states, and recent outbox events. The Offline Client creates packets while connected or disconnected after recipient key provisioning, stores encrypted envelopes in IndexedDB, retries the same identity after timeouts/reconnection, and displays the server response. It does not persist signer private keys; import the authorized signer's base64 PKCS#8 key per browser session. The operational dashboard still has no production login flow or authorized recovery action controls.
+
+The historical browser HTTP 403 could not be reproduced from retained logs. During the live check, the active profile was `dev`, malformed packet requests returned 400 through Nginx, Payment, and Gateway, and the documented Alice packet initially returned 422 `UNTRUSTED_SENDER` because only `test-sender@meshpay.local` was trusted. The local key launcher now adds Alice while retaining existing signer mappings; the same packet returned 201 and its repeat returned 200. This verifies the present local-demo path, but does not establish the cause of the earlier 403. In the secured profile, packet sync requires a JWT; the dashboard does not yet attach one.
 
 Client transitions are `LOCAL_QUEUED → SYNCING → SYNCHRONIZED | DUPLICATE | IN_PROGRESS | REJECTED`; interrupted/unknown and retryable 5xx/429 outcomes become `RETRY_PENDING`, with exponential retry capped at eight automatic attempts before `FAILED`. A manual retry reuses the stored envelope and identity. `SYNCHRONIZED` and `DUPLICATE` are server ingestion outcomes, not `SETTLED`; settlement comes from the authoritative payment lifecycle/Saga APIs.
 
@@ -278,13 +280,13 @@ Delivery is **at least once**. A crash after Kafka acknowledges a message but be
 
 Saga state and transition history are stored in Saga PostgreSQL. The workflow reacts to packet synchronization, requests validation, requests settlement, processes local completion, or records compensation/failure states. Event deduplication and Saga DB state updates occur in the listener transaction. Transition changes are checked against an explicit allowed-transition table.
 
-Saga transitions and outgoing command records are written in the same Saga PostgreSQL transaction. The scheduled publisher locks due outbox rows, waits for Kafka acknowledgment, retries with bounded exponential delay, and marks exhausted records `DEAD`; the Saga database is the recovery source. A crash after broker acknowledgment and before database commit can cause redelivery. Payment command consumers deduplicate by the stable Saga/action identity. This provides at-least-once publication and effectively-once command handling within the local consumer transaction, not global exactly-once delivery. Compensation records local workflow state only; no external transfer exists to reverse. Outbox recovery has unit coverage for stable command IDs and retry exhaustion, but database/Kafka crash injection remains unverified.
+Saga transitions and outgoing command records are written in the same Saga PostgreSQL transaction. The scheduled publisher locks due outbox rows, waits for Kafka acknowledgment, retries with bounded exponential delay, and marks exhausted records `DEAD`; the Saga database is the recovery source. A crash after broker acknowledgment and before database commit can cause redelivery. Payment command consumers deduplicate by the stable Saga/action identity. This provides at-least-once publication and effectively-once command handling within the local consumer transaction, not global exactly-once delivery. Compensation records local workflow state only; no external transfer exists to reverse. Unit tests cover stable command IDs and retry exhaustion. Controlled live checks included a Kafka outage, a Payment process stop with a committed outbox row, and a Saga process stop while Kafka retained the payment event. After restart, workflows completed and pending outbox counts returned to zero. These are demonstrations, not a comprehensive failure matrix.
 
 ## Observability
 
 Prometheus is configured to scrape Payment, Saga, and Gateway Actuator endpoints. Application code registers packet accepted/rejected/duplicate/replay and Redis-fallback counters, Payment/Saga workflow counters and timers, plus outbox/Saga gauges. Grafana provisioning points at Prometheus and includes queries for packet outcomes, outbox backlog/age, payment timing, Saga activity, and scrape health.
 
-These configurations and metric definitions are present, but populated Prometheus/Grafana panels were not independently verified in the recorded run. OpenTelemetry bridge/exporter dependencies and sampling settings exist; Compose has no collector service or configured collector endpoint, and cross-service trace export/propagation has not been verified end to end. Resilience4j packet rate limiting and Gateway circuit-breaker routes are configured; failure/threshold behavior has not been systematically tested.
+In the final live check, Prometheus reported Gateway, Payment, and Saga targets healthy (`up=1`) and returned the Payment packet-acceptance metric. Grafana's health endpoint succeeded and its authenticated read-only API found the provisioned “MeshPay Reliability” dashboard with five panels and twelve PromQL queries. Panel rendering was not visually inspected in a browser. OpenTelemetry bridge/exporter dependencies and sampling settings exist; Compose has no collector service or configured collector endpoint, and cross-service trace export/propagation has not been verified. Resilience4j failure thresholds have not been systematically tested.
 
 ## Testing and verification
 
@@ -300,28 +302,30 @@ export JAVA_HOME="$(/usr/libexec/java_home -v 17)"  # macOS; set JAVA_HOME manua
 
 ### Recorded results — 2026-10-21
 
-- Payment `clean test`: 12 tests run, 11 passed and the Testcontainers concurrency test was **skipped** because the Java test process could not access the Docker Desktop socket. Coverage includes four packet-cryptography cases, service-level idempotency fallback/error behavior, and production-profile security filters.
-- Saga `clean test` baseline: 6 tests passed. After Saga outbox implementation, `mvn -f meshpay-saga-service/pom.xml test`: 8 tests passed, including stable outbox command identity and retry exhaustion. Gateway baseline: 4 security-filter tests passed. Eureka built successfully and has no test sources.
-- Dashboard `npm ci`, production build, and `npm audit`: passed; npm reported zero vulnerabilities.
+- Final clean Java 17 module suites passed: Gateway 7/7, Payment 17/17, Saga 12/12, and Eureka built successfully with no test sources. The runs include local signed-JWT/JWKS tests in all three secured services, the 24-request concurrency test, and all three Payment/Saga Testcontainers migration scenarios; none were skipped.
+- New disposable-PostgreSQL Flyway tests passed under Java 17: Payment fresh and unversioned non-empty schema scenarios (2/2), Saga fresh and non-empty schema scenario (1/1). The live Compose databases already contained migration history; pre-existing transaction/saga rows remained present after the V4 Payment migration was added to source. These tests use schema snapshots, not a production backup/restore rehearsal.
+- The dashboard dependency tree (`npm ls --depth=0`), five packet-response regression tests (`npm test`), production build, and `npm audit --audit-level=low` passed. Vite was updated from 6.4.3 to 6.4.5 for the reported advisory; the audit then found zero vulnerabilities.
 - `docker compose config --quiet` passed and `docker compose up --build -d` built the current service/dashboard images. A stale Kafka broker session in the existing ZooKeeper state caused the first start to exit; after the session expired, starting Kafka and then the remaining Compose services succeeded without deleting volumes. All listed containers reached healthy/running states. Payment, Saga, and Gateway health endpoints returned `UP`; Gateway Payment/Saga overview routes returned HTTP 200; the dashboard and its proxied Payment overview returned HTTP 200.
-- Prometheus readiness returned HTTP 200 and all three configured scrape targets (Gateway, Payment, Saga) reported `up`. The Payment `/actuator/prometheus` endpoint exposed real HTTP and MeshPay outbox metrics. Grafana's health endpoint returned HTTP 200; dashboard panel rendering/population was not manually inspected.
+- Prometheus readiness returned HTTP 200 and all three configured scrape targets (Gateway, Payment, Saga) reported `up=1`; the Payment packet acceptance series was present. Grafana's health endpoint returned HTTP 200; the authenticated API found the provisioned dashboard with five panels and twelve queries. Visual rendering was not inspected.
 - In a separate manual live Compose check, one valid signed/encrypted packet was submitted 24 times concurrently: 1 `SYNCHRONIZED` (201), 7 `DUPLICATE` (200), 16 `IN_PROGRESS` (202). PostgreSQL showed one durable payment and one synchronization outbox event; Kafka advanced one persisted Saga to `SAGA_COMPLETED`, and the local Payment state reached `SETTLED`.
+- In the final controlled local-key check, the documented Alice signer first received `422 UNTRUSTED_SENDER`; the running service trusted only `test-sender@meshpay.local`. The local Compose helper was changed to add Alice without removing the existing signer. The exact previously rejected packet then returned `201 SYNCHRONIZED`, followed by `200 DUPLICATE`. Separate simulated packets were accepted during Kafka unavailability, before a Payment process restart, and while Saga was stopped. PostgreSQL retained committed outbox work, and restarted services processed all events. Aggregate state moved from one pre-existing payment/Saga to six; all six were locally `SETTLED` / `SAGA_COMPLETED`, with no pending outbox rows. No volumes were deleted, and these states represent simulation only.
+- Added generated-key signed-JWT/JWKS integration checks at Gateway, Payment, and Saga. Each suite verifies valid scope, insufficient scope, expired token, malformed token, invalid signature, wrong issuer, and wrong audience against a local ephemeral JWKS endpoint. This does not configure or prove a deployed identity provider or dashboard login.
 
-The manual run is not a benchmark and has no committed packet-generator script or repeatable E2E test harness. The Testcontainers result remains skipped. `test-microservices.sh` is a legacy smoke script; it does not provision packet keys or exercise signed packet synchronization.
+These controlled runtime runs are not a benchmark. Browser-generated Web Crypto acceptance and offline/reload/reconnect behavior remain unverified because no browser was available. `test-microservices.sh` is a legacy smoke script; it does not provision packet keys or exercise the browser flow.
 
-Follow-up checks in this workspace: Java 17 Saga tests passed (8/8); `git diff --check` passed; `docker compose config --quiet` passed. Dashboard `npm ci` could not complete because DNS lookup for `registry.npmjs.org` failed (`ENOTFOUND`); `npm ci --offline` also failed because TypeScript 5.7.2 is not cached (`ENOTCACHED`). Therefore the new offline client has not been compiled or exercised in a browser here. Docker Compose runtime inspection was blocked by permission denied on the Docker Desktop socket. The current process did not rerun or independently reproduce the previously recorded manual Compose checks above.
+Follow-up checks in this workspace: `git diff --check`, `docker compose --env-file /dev/null config --quiet`, `npm ls --depth=0`, and the production dashboard build passed. The browser runtime was unavailable, so browser offline/reload/reconnect acceptance remains unverified.
 
 ## Known limitations and future work
 
-- Browser offline client reload/restart and online-to-offline-to-online end-to-end acceptance has not been executed.
+- Browser offline client reload/restart and online-to-offline-to-online end-to-end acceptance has not been executed in an attached browser.
 - No real payment rail, external settlement adapter, or monetary ledger.
 - No production key-management service, secure hardware storage, signer onboarding, or automated rotation.
-- Saga outbox database/Kafka crash recovery and dead-letter operator recovery are not integration tested; dead rows currently require database operator intervention.
-- Testcontainers concurrency execution, broader DB/Kafka/Redis failure injection, Saga tests, and dashboard component tests remain incomplete.
+- Saga outbox recovery has one controlled live Kafka/Payment restart demonstration, but poison-message/dead-letter recovery and broader failure injection are not integration tested; dead rows currently require database operator intervention.
+- Redis failure and dashboard component/browser tests remain incomplete.
 - OpenTelemetry export and trace propagation are not verified end to end; no collector is included in Compose.
-- Hibernate `ddl-auto: update` remains enabled. Payment lifecycle migrations exist, but the full schema is not migration-managed and validate-only mode is not enabled.
+- Payment and Saga use Flyway migrations with Hibernate schema validation; Testcontainers cover fresh and non-empty schema migration. A production backup/restore rehearsal remains an operator task.
 - The dashboard has no production authentication integration and does not yet show transaction lifecycle detail/history or authorized recovery controls.
-- Compose development defaults, plaintext local broker connections, and sample credentials are not production-hardened. Published host ports bind to loopback, but this is not a substitute for deployment network controls. Kafka may require a retry after a previous broker session expires in ZooKeeper; this run recovered without volume deletion.
+- `.env.example` selects the unauthenticated `dev` profile and contains local placeholders; it must not be exposed publicly. Compose's implicit profile default is now secured `prod`, which requires externally configured JWT settings. TLS termination, production-grade secrets/identity, broker security, network policy, and settlement-provider integration remain deployment requirements. Kafka may require a retry after a previous broker session expires in ZooKeeper; this run recovered without volume deletion.
 
 ## Repository structure
 
