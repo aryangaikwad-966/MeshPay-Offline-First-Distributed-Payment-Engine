@@ -1,4 +1,4 @@
-# MeshPay — Offline-First Distributed Payment Infrastructure
+# MeshPay — Offline-First Distributed Payment Engine
 
 ### Secure delayed packet synchronization, durable idempotency, and event-driven recovery
 
