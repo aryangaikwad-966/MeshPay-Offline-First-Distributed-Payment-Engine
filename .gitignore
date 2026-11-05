@@ -13,3 +13,15 @@ target/
 meshpay-dashboard/node_modules/
 meshpay-dashboard/dist/
 meshpay-dashboard/tsconfig.tsbuildinfo
+meshpay-dashboard/coverage/
+
+# Terraform
+terraform/.terraform/
+terraform/*.tfstate
+terraform/*.tfstate.*
+terraform/*.tfvars
+!terraform/*.tfvars.example
+terraform/.terraform.lock.hcl
+terraform/crash.log
+terraform/override.tf
+terraform/*_override.tf

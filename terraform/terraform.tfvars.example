@@ -1,0 +1,24 @@
+# Copy to terraform.tfvars and fill in. Never commit real values.
+aws_region = "us-east-1"
+environment = "dev"
+instance_type = "t3.large"
+
+# Git URL the VM clones MeshPay from (public repo or authenticated URL/SSH).
+repo_url = "https://github.com/your-org/MeshPay-Offline-First-Distributed-Payment-Engine.git"
+repo_ref = "main"
+
+# Either provide your public key to create a key pair...
+ssh_public_key = "ssh-ed25519 AAAA... you@example.com"
+# ...or reference an existing EC2 key pair:
+# key_name = "my-existing-key"
+
+# Restrict these in anything beyond a throwaway demo.
+allowed_ssh_cidrs = ["203.0.113.10/32"]
+allowed_app_cidrs = ["0.0.0.0/0"]
+
+# Extra lines appended to the VM's .env (packet keys, JWT settings, etc.).
+# extra_env = {
+#   MESHPAY_PACKET_RSA_PRIVATE_KEY = "base64-der-pkcs8"
+#   MESHPAY_PACKET_RSA_PUBLIC_KEY  = "base64-der-spki"
+#   MESHPAY_PACKET_TRUSTED_SIGNERS = "alice@meshpay.local=base64-der-spki"
+# }

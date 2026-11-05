@@ -276,6 +276,24 @@ services:
     networks:
       - meshpay-network
 
+  # SonarQube Community Edition for static analysis. Opt-in profile so it does
+  # not start with the default stack: docker compose --profile sonar up -d
+  sonarqube:
+    image: sonarqube:community
+    container_name: meshpay-engine-sonarqube
+    environment:
+      SONAR_ES_BOOTSTRAP_CHECKS_DISABLE: "true"
+    ports:
+      - "127.0.0.1:9000:9000"
+    volumes:
+      - sonarqube_data:/opt/sonarqube/data
+      - sonarqube_extensions:/opt/sonarqube/extensions
+      - sonarqube_logs:/opt/sonarqube/logs
+    networks:
+      - meshpay-network
+    profiles:
+      - sonar
+
 networks:
   meshpay-network:
     driver: bridge
@@ -296,4 +314,10 @@ volumes:
   prometheus_data:
     driver: local
   grafana_data:
+    driver: local
+  sonarqube_data:
+    driver: local
+  sonarqube_extensions:
+    driver: local
+  sonarqube_logs:
     driver: local

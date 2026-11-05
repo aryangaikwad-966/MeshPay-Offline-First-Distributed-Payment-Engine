@@ -16,6 +16,9 @@ MeshPay explores how a backend can safely accept delayed payment packets when cl
 | Packet security | AES-256-GCM, RSA-OAEP, RSA-PSS |
 | Dashboard | React, TypeScript, Tailwind CSS, Nginx |
 | Operations | Prometheus, Grafana, Micrometer, OpenTelemetry dependencies |
+| Load testing | k6 |
+| Static analysis | SonarQube Community Edition |
+| Infrastructure as code | Terraform (AWS EC2) |
 | Local environment and tests | Docker Compose, JUnit 5, Testcontainers (payment integration test) |
 
 ## Contents
@@ -34,6 +37,9 @@ MeshPay explores how a backend can safely accept delayed payment packets when cl
 - [Saga orchestration and recovery](#saga-orchestration-and-recovery)
 - [Observability](#observability)
 - [Testing and verification](#testing-and-verification)
+- [Load testing (k6)](#load-testing-k6)
+- [Static analysis (SonarQube)](#static-analysis-sonarqube)
+- [Cloud deployment (Terraform)](#cloud-deployment-terraform)
 - [Known limitations and future work](#known-limitations-and-future-work)
 - [Repository structure](#repository-structure)
 - [License status](#license-status)
@@ -164,6 +170,7 @@ docker compose down -v
 | Gateway health / metrics | `http://localhost:8080/actuator/health` / `/actuator/prometheus` |
 | Prometheus | [http://localhost:9090](http://localhost:9090) |
 | Grafana | [http://localhost:3000](http://localhost:3000) |
+| SonarQube (opt-in `sonar` profile) | [http://localhost:9000](http://localhost:9000) |
 | Eureka | [http://localhost:8761](http://localhost:8761) |
 
 Swagger is available without authentication in the Compose `dev` profile. In a secured profile, endpoints follow service security rules and may require a JWT.
@@ -315,6 +322,54 @@ These controlled runtime runs are not a benchmark. Browser-generated Web Crypto 
 
 Follow-up checks in this workspace: `git diff --check`, `docker compose --env-file /dev/null config --quiet`, `npm ls --depth=0`, and the production dashboard build passed. The browser runtime was unavailable, so browser offline/reload/reconnect acceptance remains unverified.
 
+## Load testing (k6)
+
+k6 scripts live in `load-tests/` and target the local Compose stack. They require the `dev` profile (or a `MESHPAY_TOKEN` JWT against a secured profile):
+
+```bash
+# Health endpoints across gateway, payment, saga, eureka, dashboard
+k6 run load-tests/health.js
+
+# Read-only ops endpoints through the gateway
+k6 run load-tests/ops-overview.js
+
+# Packet synchronization; create packet files first with the Node helper
+node scripts/create-payment-packet.js   # writes /tmp/meshpay-packet-<uuid>.json
+PACKET_FILE=/tmp/meshpay-packet-<uuid>.json k6 run load-tests/payment-packet-sync.js
+```
+
+`payment-packet-sync.js` accepts `PACKET_FILE` (one packet) or `PACKET_FILES` (comma-separated list) and round-robins them. Because each packet carries a one-time sender nonce, repeated identical packets exercise the `DUPLICATE`/`IN_PROGRESS` idempotency paths rather than fresh ingestion; loop `create-payment-packet.js` and pass many files for unique submissions. k6 can also run via Docker: `docker run --rm -i grafana/k6 run - < load-tests/health.js`.
+
+## Static analysis (SonarQube)
+
+SonarQube Community Edition runs as an opt-in Compose service and does not start with the default stack:
+
+```bash
+docker compose --profile sonar up -d sonarqube
+# UI: http://localhost:9000 (default admin/admin, change on first login)
+```
+
+Scanner configuration is in `sonar-project.properties` (Java modules, dashboard sources, tests, exclusions). Run a scan with the helper script, which starts the server if needed:
+
+```bash
+SONAR_TOKEN=<user-token> ./scripts/sonar-scan.sh
+```
+
+Create the token in SonarQube under **My Account → Security**. For CI, add a `sonar-scanner` step or `mvn sonar:scan` per module pointing at the same host.
+
+## Cloud deployment (Terraform)
+
+`terraform/` provisions a single AWS EC2 instance (Ubuntu 24.04) that installs Docker, clones the repository, writes `.env` from `.env.example` plus any `extra_env` overrides, and runs `docker compose up -d --build` via cloud-init. The security group exposes SSH (restricted by `allowed_ssh_cidrs`) plus dashboard `:3001` and gateway `:8080`.
+
+```bash
+cd terraform
+cp terraform.tfvars.example terraform.tfvars   # set repo_url and ssh_public_key
+terraform init
+terraform apply
+```
+
+Outputs include the VM public IP and ready-made dashboard/gateway URLs. Note that `.env.example` selects the unauthenticated `dev` profile; use `extra_env` or edit `/opt/meshpay/.env` on the VM for production settings (JWT issuer/audience/JWKS, packet keys). This deploys the Compose stack on one VM; it is not a multi-node or managed-Kubernetes deployment.
+
 ## Known limitations and future work
 
 - Browser offline client reload/restart and online-to-offline-to-online end-to-end acceptance has not been executed in an attached browser.
@@ -336,6 +391,9 @@ meshpay-payment-service/   Packet security, idempotency, payment DB, outbox and 
 meshpay-saga-service/      Persisted Saga state, transitions, consumers and commands
 meshpay-dashboard/         React + TypeScript operational dashboard
 monitoring/                Prometheus scrape config and Grafana provisioning/dashboard
+load-tests/                k6 load-test scripts
+terraform/                 AWS EC2 deployment (cloud-init + docker compose)
+sonar-project.properties   SonarQube scanner configuration
 docker-compose.yml         Local application and infrastructure stack
 test-microservices.sh      Legacy smoke script (not a packet-sync E2E test)
 ```
