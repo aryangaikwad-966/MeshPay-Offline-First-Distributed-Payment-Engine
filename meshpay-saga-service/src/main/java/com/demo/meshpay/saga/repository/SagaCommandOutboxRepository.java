@@ -17,4 +17,5 @@ public interface SagaCommandOutboxRepository extends JpaRepository<SagaCommandOu
     List<SagaCommandOutbox> lockReady(@Param("now") Instant now, Pageable pageable);
     long countByState(String state);
     List<SagaCommandOutbox> findTop100ByOrderByCreatedAtDesc();
+    List<SagaCommandOutbox> findBySagaIdAndState(String sagaId, String state);
 }

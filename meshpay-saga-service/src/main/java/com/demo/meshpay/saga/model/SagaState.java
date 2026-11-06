@@ -69,6 +69,13 @@ public class SagaState {
     @Column
     private String aggregateId;
 
+    @Builder.Default
+    @Column(name = "recovery_attempts", nullable = false)
+    private Integer recoveryAttempts = 0;
+
+    @Column(name = "last_recovery_at")
+    private java.time.Instant lastRecoveryAt;
+
     @PrePersist
     protected void onCreate() {
         createdAt = java.time.Instant.now();

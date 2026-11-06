@@ -32,6 +32,7 @@ public class PaymentSettlementService {
     private final PaymentMetrics paymentMetrics;
     private final TransactionRepository transactionRepository;
     private final PaymentLifecycleEventRepository lifecycleEvents;
+    private final LedgerService ledgerService;
 
     /**
      * Validate a payment
@@ -202,8 +203,23 @@ public class PaymentSettlementService {
                     !transaction.getReceiverVpa().equalsIgnoreCase(receiverVpa))
                 throw new IllegalArgumentException("Settlement command does not match the synchronized payment");
             if (transaction.getStatus() == Transaction.Status.SETTLED) return;
+            if (transaction.getStatus() == Transaction.Status.REJECTED ||
+                    transaction.getStatus() == Transaction.Status.REFUNDED)
+                throw new IllegalStateException("Payment cannot be settled from status " + transaction.getStatus());
             if (transaction.getStatus() != Transaction.Status.SETTLEMENT_REQUESTED)
                 throw new IllegalStateException("Settlement was not requested for this payment");
+
+            // Move simulated value and post immutable ledger entries in this
+            // same transaction. Financial failures become terminal payment
+            // failures (published via outbox) instead of retrying forever.
+            try {
+                ledgerService.postSettlement(transaction);
+            } catch (LedgerService.InsufficientFundsException | LedgerService.AccountNotFoundException e) {
+                log.warn("Settlement rejected for financial reason: packetHash={}, reason={}", packetHash, e.getMessage());
+                handlePaymentFailure(packetId, packetHash, "SETTLEMENT_REJECTED", e.getMessage(), parentEventId);
+                return;
+            }
+
             recordTransition(transaction, Transaction.Status.SETTLED, "SETTLEMENT_CONFIRMED");
             transaction.setStatus(Transaction.Status.SETTLED);
             transaction.setSettledAt(Instant.now());

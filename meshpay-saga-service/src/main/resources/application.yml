@@ -45,6 +45,16 @@ spring:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.apache.kafka.common.serialization.StringSerializer
 
+meshpay:
+  saga:
+    recovery:
+      # A non-terminal saga untouched for this long is a stuck candidate.
+      timeout: ${SAGA_RECOVERY_TIMEOUT:PT10M}
+      # How often the sweeper scans for stuck sagas.
+      interval-ms: ${SAGA_RECOVERY_INTERVAL_MS:60000}
+      # Max automatic DEAD-command requeues per saga before MANUAL_REVIEW.
+      max-attempts: ${SAGA_RECOVERY_MAX_ATTEMPTS:3}
+
 eureka:
   client:
     service-url:

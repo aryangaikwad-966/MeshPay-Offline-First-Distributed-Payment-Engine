@@ -86,4 +86,13 @@ public interface OutboxRepository extends JpaRepository<Outbox, Long> {
     long countByDeadLetterTrue();
     java.util.Optional<Outbox> findFirstByProcessedFalseOrderByCreatedAtAsc();
     java.util.List<Outbox> findTop100ByOrderByCreatedAtDesc();
+
+    /**
+     * Dead-lettered entries (published to the .DLT topic) for ops inspection.
+     */
+    org.springframework.data.domain.Page<Outbox> findByDeadLetterTrue(
+            org.springframework.data.domain.Pageable pageable);
+
+    org.springframework.data.domain.Page<Outbox> findByDeadLetterTrueAndTopicContainingIgnoreCase(
+            String topic, org.springframework.data.domain.Pageable pageable);
 }

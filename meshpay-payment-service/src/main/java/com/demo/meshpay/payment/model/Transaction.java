@@ -59,11 +59,17 @@ public class Transaction {
     @Column(nullable = false)
     private int hopCount; // How many devices it passed through
 
+    @Column(name = "refunded_at")
+    private Instant refundedAt;
+
+    @Column(name = "refund_reason", length = 500)
+    private String refundReason;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private Status status;
 
-    public enum Status { SYNCHRONIZED, VALIDATED, SETTLEMENT_REQUESTED, SETTLED, REJECTED }
+    public enum Status { SYNCHRONIZED, VALIDATED, SETTLEMENT_REQUESTED, SETTLED, REJECTED, REFUNDED }
 
     public Transaction() {}
 
@@ -108,4 +114,9 @@ public class Transaction {
 
     public Status getStatus() { return status; }
     public void setStatus(Status status) { this.status = status; }
+
+    public Instant getRefundedAt() { return refundedAt; }
+    public void setRefundedAt(Instant refundedAt) { this.refundedAt = refundedAt; }
+    public String getRefundReason() { return refundReason; }
+    public void setRefundReason(String refundReason) { this.refundReason = refundReason; }
 }

@@ -22,7 +22,7 @@ class SagaMigrationIntegrationTest {
     @Test
     void freshAndUnversionedNonEmptySchemasMigrateAndPreserveSagaRows() throws Exception {
         Flyway flyway = migrate("saga_migration");
-        assertEquals(1, sqlMigrations(flyway));
+        assertEquals(2, sqlMigrations(flyway));
         try (Connection connection = connection("saga_migration"); Statement statement = connection.createStatement()) {
             var tables = new java.util.HashSet<String>();
             try (ResultSet rs = statement.executeQuery("SELECT table_name FROM information_schema.tables WHERE table_schema='saga_migration'")) {
@@ -34,7 +34,7 @@ class SagaMigrationIntegrationTest {
         }
 
         Flyway rebased = migrate("saga_migration");
-        assertEquals(1, sqlMigrations(rebased));
+        assertEquals(2, sqlMigrations(rebased));
         try (Connection connection = connection("saga_migration"); Statement statement = connection.createStatement()) {
             try (ResultSet rs = statement.executeQuery("SELECT count(*) FROM saga_state WHERE saga_id='saga-existing'")) {
                 assertTrue(rs.next());

@@ -53,4 +53,12 @@ public class SagaCommandOutbox {
         String message = error == null ? "Unknown publication failure" : error.getClass().getSimpleName() + ": " + error.getMessage();
         lastError = message.substring(0, Math.min(message.length(), 500));
     }
+
+    /** Recovery sweeper: reset a DEAD command for republication. Identity and payload are unchanged. */
+    public void requeue() {
+        if (!"DEAD".equals(state)) throw new IllegalStateException("Only DEAD commands can be requeued");
+        state = "PENDING";
+        attempts = 0;
+        nextAttemptAt = Instant.now();
+    }
 }

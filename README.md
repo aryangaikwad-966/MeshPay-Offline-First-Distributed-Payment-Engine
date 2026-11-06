@@ -243,6 +243,11 @@ Swagger/OpenAPI is the request-schema reference for the service endpoints.
 | `GET /api/payment/ops/transactions/{identifier}` | Transaction details and lifecycle history by packet ID or canonical hash. |
 | `GET /api/payment/ops/attempts` | Recent packet attempts and outcomes. |
 | `GET /api/payment/ops/outbox` | Recent outbox publication status and sanitized error code. |
+| `GET /api/payment/ops/outbox/dead` | Paginated dead-letter records; optional `topic` filter; metadata only. |
+| `POST /api/payment/ops/outbox/replay/{id}` | Replay a dead-lettered outbox row to its original topic (audited). |
+| `POST /api/payment/payments/{identifier}/refund` | Full refund of a settled payment; idempotent; writes compensating ledger entries. |
+| `GET /api/payment/payments/{identifier}/ledger` | Immutable ledger entries for a payment (by packet ID or hash). |
+| `GET /api/payment/refunds` | Recent refund records. |
 | `GET /api/saga/ops/overview` | Counts of persisted, completed, compensated, and active Sagas. |
 | `GET /api/saga/ops/sagas` | Recent Saga states. |
 | `GET /api/saga/ops/sagas/{sagaId}/history` | Persisted Saga transition history. |
@@ -275,19 +280,50 @@ The canonical logical packet hash is the idempotency key. Redis uses `SET NX` wi
 
 Payment row, `SYNCHRONIZED` lifecycle record, and initial synchronization outbox row are written in one PostgreSQL transaction. A duplicate request does not create another payment or synchronization outbox row. The transaction commit is the durable acceptance boundary; later validation and local settlement are separate workflow steps.
 
-The Testcontainers test asserts one payment and one outbox effect for 24 concurrent calls, but it was skipped in the recorded Maven run. The manual live run provides evidence for that single run only; Redis outage, stale-claim recovery, database rollback, and high-load behavior are not covered by executed automated tests.
+The Testcontainers test asserts one payment and one outbox effect for 24 concurrent calls and passed in the 2026-11-06 suite run (Payment 25/25). Redis outage, stale-claim recovery, and database rollback paths remain covered only by design review, not executed failure-injection tests.
 
 ## Transactional outbox and Kafka delivery semantics
 
 The Payment Service's scheduled outbox processor selects due unprocessed rows in batches with PostgreSQL `FOR UPDATE SKIP LOCKED`. It waits for Kafka's send result before marking a row processed. Failed sends increment retries and use bounded exponential delay; after the configured retry threshold, the publisher sends to a topic suffixed `.DLT` and marks that row processed only if Kafka acknowledges the dead-letter publication.
 
-Delivery is **at least once**. A crash after Kafka acknowledges a message but before the database transaction commits can cause publication again. Payment command consumers and Saga event consumers record processed identifiers in their respective databases within the listener transaction; Kafka listener acknowledgment is record-based. These mechanisms support duplicate delivery handling but are not a proof of globally exactly-once effects. DLT inspection/replay is manual, and DLT/consumer recovery is not covered by integration tests.
+Delivery is **at least once**. A crash after Kafka acknowledges a message but before the database transaction commits can cause publication again. Payment command consumers and Saga event consumers record processed identifiers in their respective databases within the listener transaction; Kafka listener acknowledgment is record-based. These mechanisms support duplicate delivery handling but are not a proof of globally exactly-once effects.
+
+Dead-lettered rows (published to `<topic>.DLT` after retry exhaustion) can be inspected and replayed through authenticated operations endpoints without manual database edits — see [DLT inspection and replay](#dlt-inspection-and-replay). Replay preserves the original event identity, so consumer-side deduplication still applies; a replayed event cannot create a second durable business effect.
 
 ## Saga orchestration and recovery
 
 Saga state and transition history are stored in Saga PostgreSQL. The workflow reacts to packet synchronization, requests validation, requests settlement, processes local completion, or records compensation/failure states. Event deduplication and Saga DB state updates occur in the listener transaction. Transition changes are checked against an explicit allowed-transition table.
 
-Saga transitions and outgoing command records are written in the same Saga PostgreSQL transaction. The scheduled publisher locks due outbox rows, waits for Kafka acknowledgment, retries with bounded exponential delay, and marks exhausted records `DEAD`; the Saga database is the recovery source. A crash after broker acknowledgment and before database commit can cause redelivery. Payment command consumers deduplicate by the stable Saga/action identity. This provides at-least-once publication and effectively-once command handling within the local consumer transaction, not global exactly-once delivery. Compensation records local workflow state only; no external transfer exists to reverse. Unit tests cover stable command IDs and retry exhaustion. Controlled live checks included a Kafka outage, a Payment process stop with a committed outbox row, and a Saga process stop while Kafka retained the payment event. After restart, workflows completed and pending outbox counts returned to zero. These are demonstrations, not a comprehensive failure matrix.
+Saga transitions and outgoing command records are written in the same Saga PostgreSQL transaction. The scheduled publisher locks due outbox rows, waits for Kafka acknowledgment, retries with bounded exponential delay, and marks exhausted records `DEAD`; the Saga database is the recovery source. A crash after broker acknowledgment and before database commit can cause redelivery. Payment command consumers deduplicate by the stable Saga/action identity. This provides at-least-once publication and effectively-once command handling within the local consumer transaction, not global exactly-once delivery. Compensation records local workflow state only; simulated balances are reversed through refund compensating entries, not saga compensation.
+
+A scheduled recovery sweeper (`SagaRecoveryScheduler`) detects non-terminal sagas whose `updated_at` is older than a configurable timeout (`meshpay.saga.recovery.timeout`, default 10m; interval 60s; max 3 automatic attempts). If the saga has a `DEAD` command-outbox row, the command is requeued once per sweep with its identity unchanged; otherwise the saga is moved to `MANUAL_REVIEW` — it is never auto-settled or auto-compensated, because a timeout cannot prove the payment succeeded or failed. Recovery attempts are persisted on the saga row (`recovery_attempts`, `last_recovery_at`) and counted in Prometheus metrics (`meshpay.saga.recovery.*`). Unit tests cover requeue, manual-review parking, attempt bounds, and per-saga failure isolation.
+
+## Financial settlement, ledger, and refunds
+
+Settlement is **simulated** — no real money moves. When the saga completion command arrives, `PaymentSettlementService` loads sender and receiver `Account` rows under `SELECT ... FOR UPDATE` pessimistic locks, validates positive amount, distinct accounts, and sufficient sender balance, then debits the sender, credits the receiver, updates the transaction to `SETTLED`, and writes two immutable `ledger_entries` rows — all in one database transaction. Insufficient funds or missing accounts reject the payment (`REJECTED`) with no partial financial effect. `BigDecimal`/`NUMERIC(19,2)` is used throughout; balances are never trusted from clients.
+
+`ledger_entries` is append-only: `uk_ledger_entry (packet_hash, account_vpa, direction, kind)` guarantees a payment can never post the same leg twice, and entries are never updated or deleted. `kind` is `SETTLEMENT` or `REFUND`. Account balances are maintained transactionally alongside the ledger (single authoritative balance store; the ledger is the audit trail).
+
+Full refunds are supported via `POST /api/payment/payments/{packetId}/refund`. A refund is eligible only for `SETTLED` payments, is idempotent (`refunds.uk_refund_packet_hash`), writes compensating `REFUND` ledger entries (debit receiver, credit sender), restores balances, marks the transaction `REFUNDED`, and records the request reason and caller identity. Partial refunds are intentionally not implemented.
+
+## DLT inspection and replay
+
+| Endpoint | Description |
+|---|---|
+| `GET /api/payment/ops/outbox/dead` | Paginated dead-letter list; filter by `topic`; exposes metadata only (never payloads) |
+| `POST /api/payment/ops/outbox/replay/{id}` | Resets a dead-lettered row to `processed=false, deadLetter=false, retryCount=0` for republish to its **original** topic; records `replay_count`, `last_replayed_by`, `last_replayed_at` |
+
+Replay rejects missing records (404), non-dead-letter rows, and already-processed rows (409). Because the outbox row keeps its original `event_id` and topic, republished events remain subject to consumer idempotency — replay cannot duplicate a durable business effect.
+
+## Correlation and JWT tooling
+
+HTTP requests carry a correlation ID (`X-Correlation-Id` header or generated UUID) propagated through MDC logging in both services. Kafka consumers extract `sagaId`, `packetHash`, `packetId`, topic/partition/offset into MDC per record via a `RecordInterceptor`, so consumer logs share the originating request's correlation context.
+
+`scripts/mint-dev-token.js` mints development JWTs for exercising the secured (`prod`) profile locally — it is a local dev tool only and is not part of any deployed issuer:
+
+```bash
+node scripts/mint-dev-token.js --help
+```
 
 ## Observability
 
@@ -319,6 +355,25 @@ export JAVA_HOME="$(/usr/libexec/java_home -v 17)"  # macOS; set JAVA_HOME manua
 - Added generated-key signed-JWT/JWKS integration checks at Gateway, Payment, and Saga. Each suite verifies valid scope, insufficient scope, expired token, malformed token, invalid signature, wrong issuer, and wrong audience against a local ephemeral JWKS endpoint. This does not configure or prove a deployed identity provider or dashboard login.
 
 These controlled runtime runs are not a benchmark. Browser-generated Web Crypto acceptance and offline/reload/reconnect behavior remain unverified because no browser was available. `test-microservices.sh` is a legacy smoke script; it does not provision packet keys or exercise the browser flow.
+
+### Recorded results — 2026-11-06 (financial correctness release)
+
+- `./mvnw test -f meshpay-payment-service/pom.xml`: **25/25 pass**, including the new `FinancialCorrectnessIntegrationTest` (8 tests: atomic debit/credit + ledger, repeated settlement, concurrent same-sender settlement, insufficient balance, full refund + compensating entries + idempotent re-refund, unsettled-refund rejection, dead-letter replay reset, replay rejection paths) and both Flyway migration scenarios through V6.
+- `./mvnw test -f meshpay-saga-service/pom.xml`: **17/17 pass**, including the new `SagaRecoverySchedulerTest` (5 tests: DEAD-command requeue, MANUAL_REVIEW parking, attempt bound, empty sweep, failure isolation) and the V2 migration scenario.
+- `docker compose config --quiet` passed; `docker compose up -d --build` built all images and the full stack reached healthy states (a stale ZooKeeper broker session required one `restart zookeeper kafka`, same as the previous run).
+- **Live end-to-end verification**: a freshly generated signed/encrypted packet was submitted through the gateway → `201 SYNCHRONIZED` → saga progressed to `SAGA_COMPLETED` → payment `SETTLED` with `bob@meshpay.local` debited 10.00 and `recipient@meshpay.local` credited 10.00, exactly two `SETTLEMENT` ledger entries. A subsequent `POST .../refund` returned the refund record, a duplicate refund call returned the same `refundId` (idempotent), four balanced ledger entries existed (2 settlement + 2 refund), and balances were restored to 50,000.00 / 0.00.
+- This live run exposed and fixed a real defect: `SagaState.recoveryAttempts` needed `@Builder.Default` (Lombok builders bypass field initializers), which had caused `NOT NULL` violations on saga creation in the deployed stack.
+
+### k6 benchmarks — 2026-11-06 (local Compose, Apple Silicon, `grafana/k6` container)
+
+| Script | Offered load | Requests | Failures | p50 | p95 | p99 |
+|---|---|---|---|---|---|---|
+| `health.js` | 20 it/s × 30s, ramp to 5 VUs | 3,005 | 0% | ~2.5ms | 3.7ms | — |
+| `ops-overview.js` | 10 VUs × 30s | 2,650 | 0% | ~10ms | 28.2ms | — |
+| `payment-packet-sync.js` | ramp to 20 VUs | 1,782 | 32.7% | ~6ms | 21.6ms | — |
+| inline clean run (20 it/s constant) | 20 it/s × 30s | 601 | 0% | ~8ms | 12.4ms | — |
+
+The packet-sync ramp exceeded the `packetSync` Resilience4j rate limit (40 req/s, `timeout-duration: 0`); rejected requests returned `429 RATE_LIMITED` with `Retry-After`. The clean 20 req/s run passed all checks — crypto verification + idempotent persistence sustain ~20 packet/s locally with p95 ≈ 12ms. These are single-machine Compose numbers, not production capacity claims.
 
 Follow-up checks in this workspace: `git diff --check`, `docker compose --env-file /dev/null config --quiet`, `npm ls --depth=0`, and the production dashboard build passed. The browser runtime was unavailable, so browser offline/reload/reconnect acceptance remains unverified.
 
@@ -373,9 +428,11 @@ Outputs include the VM public IP and ready-made dashboard/gateway URLs. Note tha
 ## Known limitations and future work
 
 - Browser offline client reload/restart and online-to-offline-to-online end-to-end acceptance has not been executed in an attached browser.
-- No real payment rail, external settlement adapter, or monetary ledger.
+- No real payment rail, external settlement adapter, or real-money movement — all balances and ledger entries are simulated.
 - No production key-management service, secure hardware storage, signer onboarding, or automated rotation.
-- Saga outbox recovery has one controlled live Kafka/Payment restart demonstration, but poison-message/dead-letter recovery and broader failure injection are not integration tested; dead rows currently require database operator intervention.
+- Saga stuck-state recovery is implemented and unit-tested, but a live stuck-saga recovery demonstration and multi-instance scheduler coordination (e.g., ShedLock) are not yet verified; with multiple Saga replicas the sweeper can race, though transitions are idempotent.
+- Dead-letter replay is implemented and integration-tested at the service level; a live Kafka-outage → DLT → replay drill has not been re-run since the endpoints were added.
+- Refunds are synchronous and full-amount only; there is no asynchronous refund saga, partial refunds, or refund webhook.
 - Redis failure and dashboard component/browser tests remain incomplete.
 - OpenTelemetry export and trace propagation are not verified end to end; no collector is included in Compose.
 - Payment and Saga use Flyway migrations with Hibernate schema validation; Testcontainers cover fresh and non-empty schema migration. A production backup/restore rehearsal remains an operator task.

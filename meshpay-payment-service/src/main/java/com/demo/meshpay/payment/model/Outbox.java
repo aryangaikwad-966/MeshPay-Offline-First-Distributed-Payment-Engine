@@ -123,6 +123,16 @@ public class Outbox {
     @Builder.Default
     private Instant nextAttemptAt = Instant.now();
 
+    @Column(name = "replay_count", nullable = false)
+    @Builder.Default
+    private Integer replayCount = 0;
+
+    @Column(name = "last_replayed_by")
+    private String lastReplayedBy;
+
+    @Column(name = "last_replayed_at")
+    private Instant lastReplayedAt;
+
     /**
      * Schema version for event evolution
      */

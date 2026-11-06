@@ -21,5 +21,9 @@ public interface SagaStateRepository extends JpaRepository<SagaState, Long> {
     long countByStateNotIn(java.util.Collection<String> states);
     long countByState(String state);
 
+    /** Non-terminal sagas not updated since the given instant (stuck candidates). */
+    java.util.List<SagaState> findByStateNotInAndUpdatedAtBefore(
+            java.util.Collection<String> states, java.time.Instant updatedBefore);
+
     void deleteBySagaId(String sagaId);
 }

@@ -18,7 +18,7 @@ const readKey = (name) => {
 
 const payment = {
   packetId: `demo-packet-${crypto.randomUUID()}`,
-  senderVpa: 'alice@meshpay.local',
+  senderVpa: process.env.MESHPAY_SENDER_VPA || 'alice@meshpay.local',
   receiverVpa: 'recipient@meshpay.local',
   amount: '10.00',
   currency: 'USD',
@@ -31,7 +31,7 @@ const aad = `meshpay-payment-aad-v1\n${payment.packetId}\n${payment.senderVpa}\n
 const cipher = crypto.createCipheriv('aes-256-gcm', aesKey, iv);
 cipher.setAAD(Buffer.from(aad));
 const encrypted = Buffer.concat([cipher.update(JSON.stringify(payment), 'utf8'), cipher.final(), cipher.getAuthTag()]);
-const recipientPublicKey = crypto.createPublicKey({ key: Buffer.from(readKey('recipient-public.spki.b64'), 'base64'), format: 'der', type: 'spki' });
+const recipientPublicKey = crypto.createPublicKey({ key: Buffer.from(readKey(process.env.MESHPAY_RECIPIENT_PUBLIC_KEY_FILE || 'recipient-public.spki.b64'), 'base64'), format: 'der', type: 'spki' });
 const wrappedKey = crypto.publicEncrypt({ key: recipientPublicKey, padding: crypto.constants.RSA_PKCS1_OAEP_PADDING, oaepHash: 'sha256' }, aesKey);
 const iv64 = iv.toString('base64');
 const wrapped64 = wrappedKey.toString('base64');

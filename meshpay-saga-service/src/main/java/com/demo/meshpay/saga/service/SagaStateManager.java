@@ -117,6 +117,11 @@ public class SagaStateManager {
     }
 
     private boolean isAllowedTransition(String from, String to) {
+        // Any non-terminal saga may be moved to MANUAL_REVIEW by the recovery
+        // sweeper; it never auto-transitions back out.
+        if (to.equals("MANUAL_REVIEW"))
+            return !from.equals("SAGA_COMPLETED") && !from.equals("SAGA_COMPENSATED")
+                    && !from.equals("MANUAL_REVIEW");
         if (to.equals("SAGA_COMPENSATED") || to.endsWith("_FAILED"))
             return !from.equals("SAGA_COMPLETED") && !from.equals("SAGA_COMPENSATED");
         return switch (from) {
