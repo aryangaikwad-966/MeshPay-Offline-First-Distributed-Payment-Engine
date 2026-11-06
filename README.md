@@ -52,7 +52,8 @@ MeshPay explores how a backend can safely accept delayed payment packets when cl
 | Packet cryptography | RSA-OAEP/SHA-256 key unwrap, AES-GCM authentication, RSA-PSS/SHA-256 sender verification are implemented. Four cryptography unit tests passed. |
 | Idempotency | Redis `SET NX` is used as a short-lived coordination claim; PostgreSQL unique constraints are the durable guard. Redis failure falls back to PostgreSQL. |
 | Concurrent duplicates | The 24-request Testcontainers test passed in the final Docker-enabled Java run. A separate live Compose run recorded one durable effect for repeated identical packet submissions. This is correctness evidence, not a benchmark. |
-| Payment outbox | Implemented for Payment Service. Rows are claimed with `SKIP LOCKED`, published with broker acknowledgment, retried, and eventually sent to a DLT. Failure recovery has not been comprehensively tested. |
+| Financial settlement | Simulated settlement atomically debits/credits accounts under `SELECT ... FOR UPDATE`, writes two append-only `ledger_entries` per payment (unique-constraint enforced), and supports idempotent full refunds with compensating entries. Verified by 8 integration tests including concurrent same-sender settlement. |
+| Payment outbox | Implemented for Payment Service with `SKIP LOCKED` claiming, broker-acknowledged publishing, bounded retries, `.DLT` dead-lettering, and authenticated dead-letter inspection/replay endpoints (`/api/payment/ops/outbox/dead`, `/replay/{id}`). |
 | Saga | State, transition history, and outgoing command records are persisted. The database row lock coordinates publishers; delivery is at least once and consumer-side command deduplication remains required. Compensation changes local workflow state only. |
 | Dashboard | Three operational read-only views plus an IndexedDB offline client are implemented. Packet-state handling is hardened, but browser offline/reload/reconnect acceptance remains unverified. No production login or operator recovery controls are included. |
 | Service authentication | Payment, Saga, and Gateway have local signed-JWT/JWKS integration tests for signature, issuer, audience, expiry, and scope behavior. A production identity provider and dashboard login are not configured. |
@@ -70,7 +71,7 @@ flowchart LR
     Browser -->|Nginx proxy /api/saga| Saga
 
     Payment -->|SET NX coordination claim| Redis[(Redis)]
-    Payment -->|payment + lifecycle + outbox transaction| PayDB[(Payment PostgreSQL)]
+    Payment -->|payment + lifecycle + ledger + refund + outbox transaction| PayDB[(Payment PostgreSQL)]
     Payment -->|outbox lifecycle events| Kafka[(Kafka)]
     Kafka -->|payment events| Saga
     Saga -->|persist state and history| SagaDB[(Saga PostgreSQL)]
@@ -114,10 +115,10 @@ These states are intentionally distinct:
 | Service | Host port | Responsibility |
 | --- | ---: | --- |
 | API Gateway | 8080 | Routes `/api/payment/**` and `/api/saga/**` through Eureka; applies configured circuit breakers and fallbacks; requires JWT authentication outside `dev`. |
-| Payment Service | 8081 | Packet verification, synchronization, PostgreSQL records, Redis claim, payment outbox, command consumers, Actuator metrics. |
-| Saga Service | 8082 | Saga state and transition history, event deduplication, workflow commands, compensation state. |
+| Payment Service | 8081 | Packet verification, synchronization, simulated settlement with ledger/refunds, PostgreSQL records, Redis claim, payment outbox, command consumers, dead-letter replay, Actuator metrics. |
+| Saga Service | 8082 | Saga state and transition history, event deduplication, workflow commands, compensation state, stuck-state recovery sweeper. |
 | Eureka Server | 8761 | Service registry. |
-| Dashboard | 3001 | Read-only overview, recent transactions/search, Saga and outbox views. |
+| Dashboard | 3001 | Operational overview, transactions/search, Saga and outbox views, and an IndexedDB offline packet client. |
 | Payment PostgreSQL | 5433 | Payment, lifecycle, packet-attempt, processed-command, and outbox data. |
 | Saga PostgreSQL | 5434 | Saga states, transitions, and processed-event records. |
 | Redis | 6379 | Expiring packet synchronization claims. |
@@ -256,6 +257,45 @@ Swagger/OpenAPI is the request-schema reference for the service endpoints.
 ## Dashboard
 
 The React + TypeScript dashboard is served by Nginx on port 3001 and proxies API requests directly to Payment and Saga. Its views are Overview, Transactions, Reliability, and Offline Client. Data refreshes every 15 seconds, and loading/error/empty states distinguish unavailable data from a real zero. A service worker caches only the static dashboard shell and same-origin assets for offline reload; API and health responses are explicitly excluded from its cache.
+
+### Dashboard screenshots
+
+Captured from the live Compose stack (`docker compose up -d`) at `http://localhost:3001`:
+
+<table>
+<tr>
+<td width="50%">
+
+**Overview** — service health, settlement pipeline, and outbox backlog
+
+<img src="docs/screenshots/overview.png" alt="MeshPay dashboard Overview tab" width="100%">
+
+</td>
+<td width="50%">
+
+**Transactions** — persisted payment records with packet search
+
+<img src="docs/screenshots/transactions.png" alt="MeshPay dashboard Transactions tab" width="100%">
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
+**Reliability** — Saga states and outbox publication health
+
+<img src="docs/screenshots/reliability.png" alt="MeshPay dashboard Reliability tab" width="100%">
+
+</td>
+<td width="50%">
+
+**Offline Client** — packet creation and IndexedDB queue with retry
+
+<img src="docs/screenshots/offline-client.png" alt="MeshPay dashboard Offline Client tab" width="100%">
+
+</td>
+</tr>
+</table>
 
 The operational views show aggregate counters, recent transactions with client-side ID/hash search, recent Saga states, and recent outbox events. The Offline Client creates packets while connected or disconnected after recipient key provisioning, stores encrypted envelopes in IndexedDB, retries the same identity after timeouts/reconnection, and displays the server response. It does not persist signer private keys; import the authorized signer's base64 PKCS#8 key per browser session. The operational dashboard still has no production login flow or authorized recovery action controls.
 
@@ -444,9 +484,10 @@ Outputs include the VM public IP and ready-made dashboard/gateway URLs. Note tha
 ```text
 meshpay-api-gateway/       HTTP routing and fallbacks
 meshpay-eureka-server/     Service registry
-meshpay-payment-service/   Packet security, idempotency, payment DB, outbox and consumers
-meshpay-saga-service/      Persisted Saga state, transitions, consumers and commands
+meshpay-payment-service/   Packet security, idempotency, ledger, refunds, payment DB, outbox and consumers
+meshpay-saga-service/      Persisted Saga state, transitions, consumers, commands and recovery sweeper
 meshpay-dashboard/         React + TypeScript operational dashboard
+docs/screenshots/          Dashboard screenshots captured from the live Compose stack
 monitoring/                Prometheus scrape config and Grafana provisioning/dashboard
 load-tests/                k6 load-test scripts
 terraform/                 AWS EC2 deployment (cloud-init + docker compose)
