@@ -1,61 +1,85 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="1120" viewBox="0 0 1000 1120" role="img" aria-labelledby="title desc">
-  <title id="title">SyncPay payment lifecycle</title>
-  <desc id="desc">A payment packet is synchronized, validated, requested for settlement, settled, and completed through Kafka commands and events.</desc>
+<svg xmlns="http://www.w3.org/2000/svg" width="1240" height="390" viewBox="0 0 1240 390" role="img" aria-labelledby="title desc">
+  <title id="title">SyncPay payment flow</title>
+  <desc id="desc">A numbered left-to-right flow: the offline client encrypts, signs, and queues a packet, syncs on reconnect, the Payment Service verifies and commits it, Kafka carries the event to the Saga Service, which drives validate, settlement, and completion commands back through Kafka while the Payment Service posts atomic ledger entries.</desc>
+  <style>
+    text { font-family: Arial, Helvetica, sans-serif; fill: #172033; }
+    .box { fill: #eef4ff; stroke: #3566b8; stroke-width: 2; }
+    .store { fill: #fff7e6; stroke: #c47b00; stroke-width: 2; }
+    .bus { fill: #e9f8ef; stroke: #238636; stroke-width: 2; }
+    .label { font-size: 15px; font-weight: 700; text-anchor: middle; }
+    .sub { font-size: 12px; text-anchor: middle; }
+    .edge { stroke: #536273; stroke-width: 2; fill: none; marker-end: url(#arrow); }
+    .dashed { stroke-dasharray: 7 5; }
+    .edge-label { font-size: 12px; fill: #536273; text-anchor: middle; }
+    .note { font-size: 12px; fill: #536273; text-anchor: middle; }
+  </style>
   <defs>
-    <marker id="arrow" markerWidth="12" markerHeight="9" refX="10" refY="4.5" orient="auto">
-      <polygon points="0 0, 12 4.5, 0 9" fill="#334155"/>
+    <marker id="arrow" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#536273"/>
     </marker>
   </defs>
-  <rect x="0" y="0" width="1000" height="1120" fill="#ffffff"/>
-  <text x="500" y="42" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="26" font-weight="700" fill="#172033">SyncPay payment lifecycle</text>
-  <text x="500" y="70" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="15" fill="#334155">Offline packet synchronization through saga-driven settlement</text>
 
-  <g font-family="Arial, Helvetica, sans-serif" fill="#172033" text-anchor="middle">
-    <rect x="80" y="105" width="210" height="64" rx="10" fill="#eef4ff" stroke="#3566b8" stroke-width="2"/>
-    <text x="185" y="132" font-size="18" font-weight="700">Browser</text>
-    <text x="185" y="153" font-size="14">offline client</text>
-    <rect x="395" y="105" width="210" height="64" rx="10" fill="#eef4ff" stroke="#3566b8" stroke-width="2"/>
-    <text x="500" y="132" font-size="18" font-weight="700">Payment Service</text>
-    <text x="500" y="153" font-size="14">crypto and ledger</text>
-    <rect x="710" y="105" width="210" height="64" rx="10" fill="#eef4ff" stroke="#3566b8" stroke-width="2"/>
-    <text x="815" y="132" font-size="18" font-weight="700">Saga Service</text>
-    <text x="815" y="153" font-size="14">workflow coordinator</text>
+  <!-- main flow, left to right -->
+  <rect class="box" x="30" y="105" width="140" height="95" rx="10"/>
+  <text class="label" x="100" y="136">1 · Client</text>
+  <text class="sub" x="100" y="158">encrypt · sign</text>
+  <text class="sub" x="100" y="176">queue offline → sync</text>
 
-    <rect x="100" y="210" width="800" height="78" rx="12" fill="#fff7e6" stroke="#c47b00" stroke-width="2"/>
-    <text x="500" y="241" font-size="18" font-weight="700">1. Queue and synchronize packet</text>
-    <text x="500" y="266" font-size="15">Create, encrypt, sign, and store offline; sync on reconnect</text>
+  <rect class="box" x="196" y="105" width="140" height="95" rx="10"/>
+  <text class="label" x="266" y="136">2 · Gateway</text>
+  <text class="sub" x="266" y="158">:8080 · route</text>
+  <text class="sub" x="266" y="176">CORS · JWT</text>
 
-    <rect x="100" y="340" width="800" height="78" rx="12" fill="#f7f9fc" stroke="#536273" stroke-width="2"/>
-    <text x="500" y="371" font-size="18" font-weight="700">2. Verify and durably accept payment</text>
-    <text x="500" y="396" font-size="15">Verify signature, decrypt, validate fields, and check nonce replay</text>
+  <rect class="box" x="362" y="105" width="140" height="95" rx="10"/>
+  <text class="label" x="432" y="136">3 · Payment</text>
+  <text class="sub" x="432" y="158">signature → decrypt</text>
+  <text class="sub" x="432" y="176">validate · TTL · nonce</text>
 
-    <rect x="100" y="470" width="800" height="78" rx="12" fill="#e9f8ef" stroke="#238636" stroke-width="2"/>
-    <text x="500" y="501" font-size="18" font-weight="700">3. Commit synchronization</text>
-    <text x="500" y="526" font-size="15">One PostgreSQL transaction: payment, lifecycle, and outbox</text>
+  <rect class="store" x="528" y="105" width="140" height="95" rx="10"/>
+  <text class="label" x="598" y="136">4 · PostgreSQL</text>
+  <text class="sub" x="598" y="158">payment + lifecycle</text>
+  <text class="sub" x="598" y="176">+ outbox · one tx</text>
 
-    <rect x="100" y="600" width="800" height="78" rx="12" fill="#f7f9fc" stroke="#536273" stroke-width="2"/>
-    <text x="500" y="631" font-size="18" font-weight="700">4. Validate through Kafka</text>
-    <text x="500" y="656" font-size="15">Synchronized event → saga state → validate-payment command → VALIDATED</text>
+  <rect class="bus" x="694" y="105" width="140" height="95" rx="17"/>
+  <text class="label" x="764" y="136">5 · Kafka</text>
+  <text class="sub" x="764" y="158">payment-synchronized</text>
+  <text class="sub" x="764" y="176">lifecycle event</text>
 
-    <rect x="100" y="730" width="800" height="78" rx="12" fill="#f7f9fc" stroke="#536273" stroke-width="2"/>
-    <text x="500" y="761" font-size="18" font-weight="700">5. Request settlement through Kafka</text>
-    <text x="500" y="786" font-size="15">Payment validated → settlement request → SETTLEMENT_REQUESTED</text>
+  <rect class="box" x="860" y="105" width="140" height="95" rx="10"/>
+  <text class="label" x="930" y="136">6 · Saga</text>
+  <text class="sub" x="930" y="158">validate → request</text>
+  <text class="sub" x="930" y="176">settlement → complete</text>
 
-    <rect x="100" y="860" width="800" height="78" rx="12" fill="#e9f8ef" stroke="#238636" stroke-width="2"/>
-    <text x="500" y="891" font-size="18" font-weight="700">6. Complete settlement</text>
-    <text x="500" y="916" font-size="15">Atomic debit and credit, two ledger entries, then SETTLED</text>
+  <rect class="box" x="1026" y="105" width="140" height="95" rx="10"/>
+  <text class="label" x="1096" y="136">7 · Settlement</text>
+  <text class="sub" x="1096" y="158">debit/credit + ledger</text>
+  <text class="sub" x="1096" y="176">→ SETTLED</text>
 
-    <rect x="100" y="990" width="800" height="78" rx="12" fill="#fff7e6" stroke="#c47b00" stroke-width="2"/>
-    <text x="500" y="1021" font-size="18" font-weight="700">Failure and recovery</text>
-    <text x="500" y="1046" font-size="15">payment-failed → compensation → SAGA_COMPENSATED; stuck sagas → MANUAL_REVIEW</text>
-  </g>
+  <!-- stores -->
+  <rect class="store" x="300" y="255" width="150" height="52" rx="10"/>
+  <text class="label" x="375" y="278">Redis</text>
+  <text class="sub" x="375" y="296">idempotency claims</text>
 
-  <g stroke="#334155" stroke-width="3" fill="none" marker-end="url(#arrow)">
-    <path d="M500 288 V340"/>
-    <path d="M500 418 V470"/>
-    <path d="M500 548 V600"/>
-    <path d="M500 678 V730"/>
-    <path d="M500 808 V860"/>
-    <path d="M500 938 V990"/>
-  </g>
+  <rect class="store" x="880" y="255" width="160" height="52" rx="10"/>
+  <text class="label" x="960" y="278">PostgreSQL</text>
+  <text class="sub" x="960" y="296">saga state + outbox</text>
+
+  <!-- forward edges -->
+  <path class="edge" d="M170 152 H196"/>
+  <path class="edge" d="M336 152 H362"/>
+  <path class="edge" d="M502 152 H528"/>
+  <path class="edge" d="M668 152 H694"/>
+  <path class="edge" d="M834 152 H860"/>
+  <path class="edge" d="M1000 152 H1026"/>
+
+  <!-- store connectors -->
+  <path class="edge" d="M380 200 V255"/>
+  <path class="edge" d="M950 200 V255"/>
+
+  <!-- saga commands return path (Kafka) -->
+  <path class="edge dashed" d="M865 200 V325 H490 V200"/>
+  <text class="edge-label" x="680" y="345">saga commands via Kafka — validate · settlement · complete</text>
+
+  <!-- footnote -->
+  <text class="note" x="620" y="375">every retry reuses the same packet identity — duplicates return DUPLICATE with no second financial effect</text>
 </svg>
