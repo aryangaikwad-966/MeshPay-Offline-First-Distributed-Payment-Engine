@@ -36,59 +36,36 @@ Payment clients are unreliable: they go offline, retry after timeouts, and resub
 
 ## Architecture
 
+MeshPay is four Spring Boot services plus their data stores, all wired together by Docker Compose. Requests enter through one gateway; services talk to each other **only through Kafka** — never by direct HTTP calls.
+
 ```mermaid
 flowchart LR
-    subgraph CLIENT["Browser"]
-        UI["React ops dashboard"]
-        OC["Offline client<br/>Web Crypto + IndexedDB"]
-    end
-
-    subgraph EDGE["Edge"]
-        NGINX["Nginx<br/>static shell + /api proxy"]
-        GW["API Gateway :8080<br/>Eureka routing · JWT · circuit breakers"]
-    end
-
-    subgraph SERVICES["Services"]
-        PAY["Payment :8081<br/>verify · idempotency · ledger · outbox"]
-        SAG["Saga :8082<br/>state machine · command outbox · recovery"]
-        EUREKA["Eureka :8761"]
-    end
-
-    subgraph DATA["Data & messaging"]
-        PDB["PostgreSQL :5433"]
-        SDB["PostgreSQL :5434"]
-        REDIS["Redis :6379"]
-        KAFKA["Kafka :9092"]
-    end
-
-    subgraph OPS["Observability"]
-        PROM["Prometheus :9090"]
-        GRAF["Grafana :3000"]
-    end
-
-    UI --> NGINX
-    OC -->|"POST /api/payment/packets/sync"| NGINX
-    NGINX -->|"/api/payment/** · /api/saga/**"| GW
-    GW -->|"lb://payment-service"| PAY
-    GW -->|"lb://saga-service"| SAG
-    PAY & SAG -->|register| EUREKA
-    GW -.service discovery.-> EUREKA
-
-    PAY --> REDIS
-    PAY --> PDB
-    SAG --> SDB
-    PAY -->|"events via outbox"| KAFKA
-    SAG -->|"commands via outbox"| KAFKA
-    KAFKA -->|"payment events"| SAG
-    KAFKA -->|"saga commands"| PAY
-
-    PROM -->|"/actuator/prometheus"| PAY
-    PROM --> SAG
-    PROM --> GW
-    GRAF --> PROM
+    A["Client<br/>(browser / offline packet)"] --> B["API Gateway<br/>:8080"]
+    B --> C["Payment Service<br/>:8081"]
+    B --> D["Saga Service<br/>:8082"]
+    C <-->|"events & commands"| K{{"Kafka"}}
+    D <-->|"events & commands"| K
+    C --> E[("PostgreSQL<br/>payments, ledger, outbox")]
+    C --> F[("Redis<br/>idempotency claims")]
+    D --> G[("PostgreSQL<br/>saga state, outbox")]
+    C -.->|register| H["Eureka<br/>:8761"]
+    D -.->|register| H
+    B -.->|discover| H
 ```
 
-All dashboard API traffic routes through the gateway, so it gets Eureka service discovery and — outside `dev` — JWT enforcement. Compose binds every published port to `127.0.0.1`.
+| Component | Port | Responsibility |
+| --- | ---: | --- |
+| API Gateway | 8080 | Single entry point — routes `/api/payment/**` and `/api/saga/**`, JWT auth, circuit breakers |
+| Eureka Server | 8761 | Service registry for gateway discovery |
+| Payment Service | 8081 | Packet crypto/verify, idempotent sync, simulated ledger + refunds, payment outbox, command consumer |
+| Saga Service | 8082 | Persisted saga state machine, transition history, command outbox, event consumer, recovery sweeper |
+| Dashboard | 3001 | React ops UI + offline packet client (Nginx; proxies API calls to the gateway) |
+| PostgreSQL ×2 | 5433 / 5434 | One database per service — no shared schema |
+| Redis | 6379 | Expiring idempotency claims (PostgreSQL is the durable guard) |
+| Kafka | 9092 | All inter-service events and commands |
+| Prometheus / Grafana | 9090 / 3000 | Metrics scraping and dashboards |
+
+All published ports bind to `127.0.0.1` in Compose.
 
 ## Payment lifecycle
 
