@@ -131,6 +131,7 @@ services:
       SYNCPAY_JWKS_URI: ${SYNCPAY_JWKS_URI:-}
       SYNCPAY_JWT_ISSUER: ${SYNCPAY_JWT_ISSUER:-}
       SYNCPAY_JWT_AUDIENCE: ${SYNCPAY_JWT_AUDIENCE:-}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:3001,http://127.0.0.1:3001,http://localhost:8080}
     depends_on:
       eureka-server:
         condition: service_healthy
@@ -171,6 +172,7 @@ services:
       SYNCPAY_JWKS_URI: ${SYNCPAY_JWKS_URI:-}
       SYNCPAY_JWT_ISSUER: ${SYNCPAY_JWT_ISSUER:-}
       SYNCPAY_JWT_AUDIENCE: ${SYNCPAY_JWT_AUDIENCE:-}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:3001,http://127.0.0.1:3001,http://localhost:8080}
     depends_on:
       postgres-payment:
         condition: service_healthy
@@ -211,6 +213,7 @@ services:
       SYNCPAY_JWKS_URI: ${SYNCPAY_JWKS_URI:-}
       SYNCPAY_JWT_ISSUER: ${SYNCPAY_JWT_ISSUER:-}
       SYNCPAY_JWT_AUDIENCE: ${SYNCPAY_JWT_AUDIENCE:-}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:3001,http://127.0.0.1:3001,http://localhost:8080}
     depends_on:
       postgres-saga:
         condition: service_healthy

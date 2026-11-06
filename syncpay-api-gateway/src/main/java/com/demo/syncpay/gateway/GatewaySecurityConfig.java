@@ -15,6 +15,7 @@ import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusReactiveJwtDecoder;
 import org.springframework.security.oauth2.jwt.ReactiveJwtDecoder;
 import org.springframework.security.web.server.SecurityWebFilterChain;
+import org.springframework.web.cors.reactive.CorsConfigurationSource;
 
 @Configuration
 @EnableWebFluxSecurity
@@ -24,16 +25,20 @@ public class GatewaySecurityConfig {
 
     @Bean
     @Profile("dev")
-    SecurityWebFilterChain developmentSecurity(ServerHttpSecurity http) {
+    SecurityWebFilterChain developmentSecurity(ServerHttpSecurity http,
+            CorsConfigurationSource corsConfigurationSource) {
         return http.csrf(ServerHttpSecurity.CsrfSpec::disable)
+                .cors(cors -> cors.configurationSource(corsConfigurationSource))
                 .authorizeExchange(exchange -> exchange.anyExchange().permitAll())
                 .build();
     }
 
     @Bean
     @Profile("!dev")
-    SecurityWebFilterChain securedSecurity(ServerHttpSecurity http) {
+    SecurityWebFilterChain securedSecurity(ServerHttpSecurity http,
+            CorsConfigurationSource corsConfigurationSource) {
         return http.csrf(ServerHttpSecurity.CsrfSpec::disable)
+                .cors(cors -> cors.configurationSource(corsConfigurationSource))
                 .authorizeExchange(exchange -> exchange
                         .pathMatchers("/actuator/health", "/actuator/health/**", "/fallback/**").permitAll()
                         .pathMatchers("/actuator/prometheus").hasAuthority(METRICS)

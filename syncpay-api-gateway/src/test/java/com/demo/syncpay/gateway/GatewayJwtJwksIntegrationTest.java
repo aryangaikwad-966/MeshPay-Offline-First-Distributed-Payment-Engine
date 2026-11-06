@@ -29,7 +29,7 @@ import java.time.Instant;
 import java.util.Date;
 
 @WebFluxTest(controllers = GatewayJwtJwksIntegrationTest.ProbeController.class)
-@Import({GatewaySecurityConfig.class, GatewayJwtJwksIntegrationTest.ProbeController.class})
+@Import({GatewaySecurityConfig.class, GatewayCorsConfig.class, GatewayJwtJwksIntegrationTest.ProbeController.class})
 @ActiveProfiles("prod")
 @TestPropertySource(properties = {
         "SYNCPAY_JWT_ISSUER=https://syncpay-gateway.test/",

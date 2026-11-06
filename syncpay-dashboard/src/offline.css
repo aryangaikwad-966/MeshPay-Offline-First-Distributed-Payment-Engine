@@ -11,3 +11,7 @@
 .offline .state{white-space:nowrap}
 .offline .refresh:disabled{opacity:.5;cursor:not-allowed}
 @media(max-width:700px){.offline .keyrow,.offline .packet-form{grid-template-columns:1fr}}
+.offline .keyrow-actions{display:flex;gap:8px;flex-wrap:wrap}
+.offline .device-id{color:#72879a;font-size:10px;word-break:break-all}
+.offline .refresh.danger{border-color:#5a2b33;color:#e08a94}
+.offline .dev-import{margin-top:8px;opacity:.85}

@@ -25,7 +25,7 @@ class PaymentMigrationIntegrationTest {
     @Test
     void freshDatabaseGetsCompleteSchemaAndLifecycleConstraints() throws Exception {
         Flyway flyway = migrate("fresh_payment");
-        assertEquals(6, sqlMigrations(flyway));
+        assertEquals(7, sqlMigrations(flyway));
 
         try (Connection connection = connection("fresh_payment"); Statement statement = connection.createStatement()) {
             Set<String> tables;
@@ -35,7 +35,7 @@ class PaymentMigrationIntegrationTest {
                 tables = found;
             }
             assertTrue(tables.containsAll(Set.of("transactions", "accounts", "outbox", "packet_attempts",
-                    "payment_lifecycle_events", "processed_commands", "ledger_entries", "refunds",
+                    "payment_lifecycle_events", "processed_commands", "ledger_entries", "refunds", "device_keys",
                     "flyway_schema_history")));
             assertTrue(scalarBoolean(statement, "SELECT EXISTS (SELECT 1 FROM pg_constraint c JOIN pg_class t ON t.oid=c.conrelid JOIN pg_namespace n ON n.oid=t.relnamespace WHERE n.nspname='fresh_payment' AND t.relname='transactions' AND c.conname='transactions_status_check')"));
             assertTrue(scalarBoolean(statement, "SELECT EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname='fresh_payment' AND indexname='idx_transaction_sender_nonce')"));
@@ -51,7 +51,7 @@ class PaymentMigrationIntegrationTest {
         }
 
         Flyway rebased = migrate("legacy_payment");
-        assertEquals(6, sqlMigrations(rebased));
+        assertEquals(7, sqlMigrations(rebased));
         try (Connection connection = connection("legacy_payment"); Statement statement = connection.createStatement()) {
             assertEquals(1, scalarLong(statement, "SELECT count(*) FROM transactions WHERE packet_id='packet-existing'"));
             statement.executeUpdate("UPDATE transactions SET settled_at=NULL WHERE packet_id='packet-existing'");

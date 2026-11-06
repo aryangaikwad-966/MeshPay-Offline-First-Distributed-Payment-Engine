@@ -29,7 +29,7 @@ Payment clients are unreliable: they go offline, retry after timeouts, and resub
 
 | Layer | Mechanism |
 | --- | --- |
-| **Client** | Browser Web Crypto builds a signed, encrypted envelope (AES-256-GCM payload · RSA-OAEP key wrap · RSA-PSS signature) and persists it in IndexedDB until acknowledged |
+| **Client** | Browser Web Crypto builds a signed, encrypted envelope (AES-256-GCM payload · RSA-OAEP key wrap · RSA-PSS signature) using a device-managed, non-exportable signing key, and persists it in IndexedDB until acknowledged |
 | **Ingestion** | Payment Service verifies signature → unwraps key → decrypts with AAD → validates fields, time window, and nonce replay, then commits payment + lifecycle + outbox in **one PostgreSQL transaction** |
 | **Idempotency** | Redis `SET NX` claims coordinate fast-path duplicates; PostgreSQL unique constraints (`packet_hash`, `packet_id`, `(sender_vpa, nonce)`) are the authoritative barrier |
 | **Settlement** | Kafka lifecycle events flow through transactional outboxes; a Saga service orchestrates *validate → settle → complete* with persisted state, transition history, deduplication, and stuck-saga recovery |
@@ -43,7 +43,7 @@ SyncPay is four Spring Boot services plus their data stores, all wired together 
 
 | Component | Port | Responsibility |
 | --- | ---: | --- |
-| API Gateway | 8080 | Single entry point — routes `/api/payment/**` and `/api/saga/**`, JWT auth, circuit breakers |
+| API Gateway | 8080 | Single entry point — routes `/api/payment/**` and `/api/saga/**`, CORS, JWT auth, circuit breakers |
 | Eureka Server | 8761 | Service registry for gateway discovery |
 | Payment Service | 8081 | Packet crypto/verify, idempotent sync, simulated ledger + refunds, payment outbox, command consumer |
 | Saga Service | 8082 | Persisted saga state machine, transition history, command outbox, event consumer, recovery sweeper |
@@ -95,7 +95,12 @@ docker compose ps           # wait for healthy
 
 ### Packet key setup (local demo)
 
-Packet sync requires a server RSA keypair and at least one trusted sender public key. `.local-keys/` is git-ignored; generate a demo pair:
+Packet sync always requires a server RSA keypair (`SYNCPAY_PACKET_RSA_PRIVATE_KEY` / `SYNCPAY_PACKET_RSA_PUBLIC_KEY`, both or neither). Sender authentication has two paths:
+
+- **Device registration (default).** The dashboard's Offline Client generates a non-exportable RSA-PSS key pair on first use, persists it in IndexedDB across browser sessions, and registers the public key per sender VPA via `POST /api/payment/devices/register`. Registered keys are verified from the `device_keys` table; `POST /api/payment/devices/{vpa}/revoke` disables them without deleting audit history. Re-registration rotates key material.
+- **Static trusted signers (CLI/dev fallback).** `SYNCPAY_PACKET_TRUSTED_SIGNERS=senderVpa=base64(DER SPKI)` entries (`;`-separated) are used when a VPA has no registered device keys — this is how `scripts/create-payment-packet.js` and `.local-keys/` demo identities authenticate.
+
+To enable packet sync locally, generate the recipient pair into the git-ignored `.local-keys/` directory:
 
 ```bash
 mkdir -m 700 .local-keys
@@ -103,17 +108,13 @@ openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:3072 -out .local-keys/re
 openssl pkey -in .local-keys/recipient-private.pem -pubout -out .local-keys/recipient-public.pem
 openssl pkcs8 -topk8 -nocrypt -in .local-keys/recipient-private.pem -outform DER | base64 | tr -d '\n' > .local-keys/recipient-private.pkcs8.b64
 openssl pkey -in .local-keys/recipient-public.pem -pubin -outform DER | base64 | tr -d '\n' > .local-keys/recipient-public.spki.b64
-openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:3072 -out .local-keys/signer-private.pem
-openssl pkey -in .local-keys/signer-private.pem -pubout -out .local-keys/signer-public.pem
-openssl pkcs8 -topk8 -nocrypt -in .local-keys/signer-private.pem -outform DER | base64 | tr -d '\n' > .local-keys/signer-private.pkcs8.b64
-openssl pkey -in .local-keys/signer-public.pem -pubin -outform DER | base64 | tr -d '\n' > .local-keys/signer-public.spki.b64
 ```
 
-Then either put the values into `.env` (`SYNCPAY_PACKET_RSA_PRIVATE_KEY`, `SYNCPAY_PACKET_RSA_PUBLIC_KEY`, `SYNCPAY_PACKET_TRUSTED_SIGNERS=alice@syncpay.local=<signer-public.spki.b64>`), or run `scripts/compose-with-demo-packet-keys.sh` — it exports the keys and adds the `alice@syncpay.local` signer without editing `.env`.
+Then either put `SYNCPAY_PACKET_RSA_PRIVATE_KEY` / `SYNCPAY_PACKET_RSA_PUBLIC_KEY` into `.env`, or run `scripts/compose-with-demo-packet-keys.sh` — it exports the keys without editing `.env`. For CLI packet generation, also generate a signer pair and add it to `SYNCPAY_PACKET_TRUSTED_SIGNERS` (the script can do this for `alice@syncpay.local`).
 
-In the dashboard's **Offline Client** tab: load the recipient key while online, import `signer-private.pkcs8.b64` (held in memory only, never persisted), and create packets. A CLI generator is also available: `node scripts/create-payment-packet.js` (writes `/tmp/syncpay-packet-<uuid>.json`).
+In the dashboard's **Offline Client** tab: click **Register device** (or just create a packet while online — registration happens automatically), and payments are signed by the device key. A developer can still import `signer-private.pkcs8.b64` per session to override the device key. A CLI generator is also available: `node scripts/create-payment-packet.js` (writes `/tmp/syncpay-packet-<uuid>.json`).
 
-These are demo credentials — no KMS, HSM, rotation, or signer onboarding exists.
+These are demo credentials — no KMS, HSM, or key-rotation automation exists.
 
 ## Environment variables
 
@@ -126,7 +127,7 @@ Compose reads the root `.env` (git-ignored). `.env.example` selects `dev`, which
 | `REDIS_PASSWORD` / `REDIS_PORT` | Redis auth and host port |
 | `GRAFANA_ADMIN_PASSWORD` | Grafana admin password |
 | `SYNCPAY_PACKET_RSA_PRIVATE_KEY` / `SYNCPAY_PACKET_RSA_PUBLIC_KEY` | Base64 DER PKCS#8 / X.509 recipient key pair — both or neither |
-| `SYNCPAY_PACKET_TRUSTED_SIGNERS` | `senderVpa=base64(DER SPKI)` entries, `;`-separated |
+| `SYNCPAY_PACKET_TRUSTED_SIGNERS` | `senderVpa=base64(DER SPKI)` entries, `;`-separated — fallback for senders without registered device keys |
 | `SYNCPAY_PACKET_MAX_OFFLINE_AGE` | Accepted offline window (default `30d`) |
 | `SYNCPAY_OUTBOX_MAX_RETRIES` / `SYNCPAY_OUTBOX_ENABLED` | Payment outbox retry bound / toggle |
 | `SAGA_RECOVERY_TIMEOUT` / `SAGA_RECOVERY_INTERVAL_MS` / `SAGA_RECOVERY_MAX_ATTEMPTS` | Stuck-saga sweeper tuning (defaults `PT10M` / `60000` / `3`) |
@@ -151,6 +152,7 @@ Full request schemas: Swagger UI at `:8081/swagger-ui.html` and `:8082/swagger-u
 | --- | --- |
 | `POST /api/payment/packets/sync` | Verify + ingest an encrypted packet → `201 SYNCHRONIZED`, `200 DUPLICATE`, `202 IN_PROGRESS` (+`Retry-After`); rate-limited at 40 req/s |
 | `GET /api/payment/packets/recipient-key` | Server RSA public key for packet encryption |
+| `POST /api/payment/devices/register` · `GET /api/payment/devices/{vpa}` · `POST /api/payment/devices/{vpa}/revoke` | Device signing-key registration, status, and revocation |
 | `GET /api/payment/ops/{overview,transactions,transactions/{id},attempts,outbox}` | Read-only operational views backed by PostgreSQL |
 | `GET /api/payment/ops/outbox/dead` · `POST …/replay/{id}` | Dead-letter inspection and audited replay to the original topic |
 | `POST /api/payment/payments/{id}/refund` · `GET …/ledger` · `GET /api/payment/refunds` | Full idempotent refund, immutable ledger, refund list |
@@ -202,17 +204,18 @@ CI (`.github/workflows/ci-cd.yml`) runs dependency-check, Maven build + test aga
 
 | Suite | Result |
 | --- | --- |
-| Payment Service | 25/25 tests — incl. financial-correctness integration tests (atomic debit/credit + ledger, concurrent settlement, insufficient funds, idempotent refund, DLT replay) and Flyway migrations through V6 |
+| Payment Service | 25/25 tests — incl. financial-correctness integration tests (atomic debit/credit + ledger, concurrent settlement, insufficient funds, idempotent refund, DLT replay), device signing-key registration/revocation, and Flyway migrations through V7 |
 | Saga Service | 17/17 tests — incl. recovery sweeper (requeue, `MANUAL_REVIEW`, attempt bounds, failure isolation) |
 | Gateway / Eureka | Signed-JWT/JWKS integration tests pass in all secured services |
 | Live E2E | Signed packet → `201 SYNCHRONIZED` → `SAGA_COMPLETED` → `SETTLED` with correct ledger entries; refund retry returned the same `refundId` (idempotent) |
+| Browser E2E | Headless Chromium: device key registered → payment queued offline (`LOCAL_QUEUED`) → reconnect auto-synced (`201 SYNCHRONIZED`) → `SETTLED` with exactly 2 ledger entries; identical re-POST returned `DUPLICATE` with no second financial effect |
 | k6 (local, single machine) | Health ~2.5 ms p50 · ops reads ~10 ms p50 · packet sync ~20 req/s sustained, p95 ≈ 12 ms; above the 40 req/s rate limit requests correctly returned `429` |
 
 Load tests: `k6 run load-tests/health.js` · `load-tests/ops-overview.js` · `load-tests/payment-packet-sync.js` (packet files from `node scripts/create-payment-packet.js`).
 
 ## Dashboard
 
-Four views — **Overview, Transactions, Reliability, Offline Client** — poll live ops APIs every 15 s. The service worker caches only the static shell; `/api/*` and health responses are never cached. The Offline Client implements the full packet lifecycle client-side: Web Crypto encrypt/sign → IndexedDB → sync with retry (`LOCAL_QUEUED → SYNCING → SYNCHRONIZED | DUPLICATE | IN_PROGRESS | REJECTED | RETRY_PENDING | FAILED`), reusing the stored envelope on every retry.
+Four views — **Overview, Transactions, Reliability, Offline Client** — poll live ops APIs every 15 s. The service worker caches only the static shell; `/api/*` and health responses are never cached. The Offline Client implements the full packet lifecycle client-side: a non-exportable device signing key (generated once, persisted in IndexedDB, registered per sender VPA) → Web Crypto encrypt/sign → IndexedDB queue → sync with retry (`LOCAL_QUEUED → SYNCING → SYNCHRONIZED | DUPLICATE | IN_PROGRESS | REJECTED | RETRY_PENDING | FAILED`), reusing the stored envelope on every retry. Manual PKCS#8 signer import remains as a developer override.
 
 <table>
 <tr>
@@ -261,9 +264,9 @@ Terraform (`terraform/`) provisions one Ubuntu 24.04 EC2 instance that installs 
 ## Known limitations
 
 - **Simulation only** — no real payment rail, settlement adapter, or money movement; balances and ledger entries are demo fixtures.
-- **Key management is manual** — demo RSA keys only; no KMS/HSM, rotation procedure, or signer onboarding. The packet format has no key ID, so signer changes require coordinated trusted-key replacement.
+- **Key management is demo-grade** — device keys are registered/revoked per VPA in PostgreSQL, but there is no KMS/HSM, attestation, or rotation automation; the server recipient key is still env-configured and the packet format has no key ID.
 - **At-least-once, not exactly-once** — correct under the implemented dedup layers, but no global exactly-once guarantee exists; crash windows between Kafka ack and DB commit can redeliver.
-- **Browser E2E unverified** — the offline client's reload/reconnect path is implemented and unit-covered (`syncResult.test.mjs`), but a full browser offline→online acceptance run has not been executed.
+- **No manifest / not installable** — the service worker caches the app shell for offline reopen, but there is no web app manifest, icons, or standalone display mode; iOS Safari may also purge IndexedDB after ~7 days of inactivity.
 - **Single-node everything** — one Kafka broker, one replica per service, in-process schedulers; the saga sweeper can race across replicas (transitions are idempotent, but there is no ShedLock-style coordination).
 - **Refunds are synchronous and full-amount only** — no partial refunds, refund saga, or webhooks.
 - **OpenTelemetry is not wired end-to-end** — tracing deps and sampling config exist, but Compose has no collector.

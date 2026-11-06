@@ -33,7 +33,8 @@ class PacketCryptographyTest {
         recipient = generator.generateKeyPair();
         signer = generator.generateKeyPair();
         cryptography = new PacketCryptography(MAPPER, b64(recipient.getPrivate().getEncoded()),
-                b64(recipient.getPublic().getEncoded()), "alice@demo=" + b64(signer.getPublic().getEncoded()), Duration.ofDays(30));
+                b64(recipient.getPublic().getEncoded()), "alice@demo=" + b64(signer.getPublic().getEncoded()), Duration.ofDays(30),
+                vpa -> java.util.List.of());
     }
 
     @Test
@@ -62,7 +63,7 @@ class PacketCryptographyTest {
         PaymentPacketRequest packet = createPacket("packet-c", "nonce-c");
         byte[] ciphertext = Base64.getDecoder().decode(packet.ciphertext());
         ciphertext[ciphertext.length - 1] ^= 1;
-        PaymentPacketRequest tampered = sign(packet.packetId(), packet.senderVpa(), packet.senderNonce(), packet.iv(),
+        PaymentPacketRequest tampered = sign(signer, packet.packetId(), packet.senderVpa(), packet.senderNonce(), packet.iv(),
                 packet.wrappedAesKey(), b64(ciphertext));
         PacketCryptography.PacketException error = assertThrows(PacketCryptography.PacketException.class,
                 () -> cryptography.verifyAndDecrypt(tampered));
@@ -79,12 +80,45 @@ class PacketCryptographyTest {
         assertEquals("PACKET_EXPIRED", error.getCode());
     }
 
+    @Test
+    void verifiesPacketSignedByDeviceRegisteredKey() throws Exception {
+        KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");
+        generator.initialize(2048);
+        KeyPair deviceSigner = generator.generateKeyPair();
+        PacketCryptography deviceCrypto = new PacketCryptography(MAPPER, b64(recipient.getPrivate().getEncoded()),
+                b64(recipient.getPublic().getEncoded()), "", Duration.ofDays(30),
+                vpa -> vpa.equals("alice@demo") ? java.util.List.of(b64(deviceSigner.getPublic().getEncoded())) : java.util.List.of());
+        DecryptedPaymentPacket payment = new DecryptedPaymentPacket("packet-device", "alice@demo", "bob@demo",
+                new BigDecimal("7.25"), "USD", Instant.now().toEpochMilli(), "nonce-device");
+        PaymentPacketRequest packet = encryptAndSign(payment, deviceSigner);
+        PacketCryptography.VerifiedPacket verified = deviceCrypto.verifyAndDecrypt(packet);
+        assertEquals("packet-device", verified.payment().packetId());
+    }
+
+    @Test
+    void rejectsPacketWhenDeviceKeyIsRevokedAndNoStaticKeyExists() throws Exception {
+        PacketCryptography noKeys = new PacketCryptography(MAPPER, b64(recipient.getPrivate().getEncoded()),
+                b64(recipient.getPublic().getEncoded()), "", Duration.ofDays(30), vpa -> java.util.List.of());
+        PaymentPacketRequest packet = createPacket("packet-no-key", "nonce-no-key");
+        // alice@demo has a static trusted signer, so use an unregistered sender instead.
+        DecryptedPaymentPacket stranger = new DecryptedPaymentPacket("packet-stranger", "mallory@demo", "bob@demo",
+                new BigDecimal("1.00"), "USD", Instant.now().toEpochMilli(), "nonce-stranger");
+        PaymentPacketRequest strangerPacket = encryptAndSign(stranger);
+        PacketCryptography.PacketException error = assertThrows(PacketCryptography.PacketException.class,
+                () -> noKeys.verifyAndDecrypt(strangerPacket));
+        assertEquals("UNTRUSTED_SENDER", error.getCode());
+    }
+
     private static PaymentPacketRequest createPacket(String id, String nonce) throws Exception {
         return encryptAndSign(new DecryptedPaymentPacket(id, "alice@demo", "bob@demo",
                 new BigDecimal("12.50"), "USD", Instant.now().toEpochMilli(), nonce));
     }
 
     private static PaymentPacketRequest encryptAndSign(DecryptedPaymentPacket payment) throws Exception {
+        return encryptAndSign(payment, signer);
+    }
+
+    private static PaymentPacketRequest encryptAndSign(DecryptedPaymentPacket payment, KeyPair signingKey) throws Exception {
         byte[] iv = new byte[12];
         new SecureRandom().nextBytes(iv);
         String ivText = b64(iv);
@@ -99,18 +133,18 @@ class PacketCryptographyTest {
                 "SHA-256", "MGF1", MGF1ParameterSpec.SHA256, PSource.PSpecified.DEFAULT));
         String wrappedKey = b64(keyCipher.doFinal(aes));
         java.util.Arrays.fill(aes, (byte) 0);
-        return sign(payment.packetId(), payment.senderVpa(), payment.senderNonce(), ivText, wrappedKey, b64(ciphertext));
+        return sign(signingKey, payment.packetId(), payment.senderVpa(), payment.senderNonce(), ivText, wrappedKey, b64(ciphertext));
     }
 
     private static byte[] aad(DecryptedPaymentPacket p) {
         return String.join("\n", "syncpay-payment-aad-v1", p.packetId(), p.senderVpa().toLowerCase(), p.senderNonce()).getBytes(java.nio.charset.StandardCharsets.UTF_8);
     }
 
-    private static PaymentPacketRequest sign(String id, String sender, String nonce, String iv, String key, String ciphertext) throws Exception {
+    private static PaymentPacketRequest sign(KeyPair signingKey, String id, String sender, String nonce, String iv, String key, String ciphertext) throws Exception {
         String canonical = String.join("\n", "syncpay-encrypted-packet-v1", id, sender.toLowerCase(), nonce, iv, key, ciphertext);
         Signature signature = Signature.getInstance("RSASSA-PSS");
         signature.setParameter(new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1));
-        signature.initSign(signer.getPrivate());
+        signature.initSign(signingKey.getPrivate());
         signature.update(canonical.getBytes(java.nio.charset.StandardCharsets.UTF_8));
         return new PaymentPacketRequest(id, sender, nonce, iv, key, ciphertext, b64(signature.sign()), "bridge-1", 0);
     }

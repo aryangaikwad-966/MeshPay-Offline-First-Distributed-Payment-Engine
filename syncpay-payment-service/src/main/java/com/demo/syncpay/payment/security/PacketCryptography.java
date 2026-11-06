@@ -3,6 +3,7 @@ package com.demo.syncpay.payment.security;
 import com.demo.syncpay.payment.api.DecryptedPaymentPacket;
 import com.demo.syncpay.payment.api.PaymentPacketRequest;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import jakarta.annotation.PostConstruct;
 import org.springframework.stereotype.Component;
@@ -26,10 +27,12 @@ import java.time.Instant;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.HexFormat;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
 @Component
+@Slf4j
 public class PacketCryptography {
     private static final OAEPParameterSpec OAEP = new OAEPParameterSpec(
             "SHA-256", "MGF1", MGF1ParameterSpec.SHA256, PSource.PSpecified.DEFAULT);
@@ -40,12 +43,14 @@ public class PacketCryptography {
     private final String publicKeyBase64;
     private final Map<String, String> trustedSigners;
     private final Duration maxAge;
+    private final DeviceKeyLookup deviceKeys;
 
     public PacketCryptography(ObjectMapper mapper,
             @Value("${syncpay.packet.server-private-key:}") String privateKey,
             @Value("${syncpay.packet.server-public-key:}") String publicKey,
             @Value("${syncpay.packet.trusted-signers:}") String trustedSigners,
-            @Value("${syncpay.packet.max-offline-age:30d}") Duration maxAge) {
+            @Value("${syncpay.packet.max-offline-age:30d}") Duration maxAge,
+            DeviceKeyLookup deviceKeys) {
         this.mapper = mapper;
         this.privateKeyBytes = privateKey == null || privateKey.isBlank() ? new byte[0] : decode(privateKey, "private key");
         this.publicKeyBase64 = publicKey == null ? "" : publicKey;
@@ -54,6 +59,7 @@ public class PacketCryptography {
                 .filter(parts -> parts.length == 2)
                 .collect(Collectors.toUnmodifiableMap(parts -> parts[0].toLowerCase(), parts -> parts[1], (a, b) -> a));
         this.maxAge = maxAge;
+        this.deviceKeys = deviceKeys == null ? vpa -> List.of() : deviceKeys;
     }
 
     @PostConstruct
@@ -88,17 +94,8 @@ public class PacketCryptography {
             throw new PacketException("INVALID_HOP_COUNT", "Packet hop count is outside the accepted range", 400);
 
         try {
-            String encodedSigner = trustedSigners.get(envelope.senderVpa().toLowerCase());
-            if (encodedSigner == null) throw new PacketException("UNTRUSTED_SENDER", "No trusted key is configured for this sender", 422);
-            var signer = KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(decode(encodedSigner, "trusted sender key")));
-            if (!(signer instanceof RSAPublicKey rsaSigner) || rsaSigner.getModulus().bitLength() < 2048)
-                throw new PacketException("WEAK_SIGNING_KEY", "Trusted sender key must be RSA 2048-bit or stronger", 422);
-            Signature verifier = Signature.getInstance("RSASSA-PSS");
-            verifier.setParameter(PSS);
-            verifier.initVerify(signer);
             byte[] signedData = canonicalEnvelope(envelope, iv, wrappedKey, ciphertext);
-            verifier.update(signedData);
-            if (!verifier.verify(signatureBytes)) throw new PacketException("INVALID_SIGNATURE", "Packet signature verification failed", 422);
+            RSAPublicKey signer = resolveSigner(envelope.senderVpa(), signatureBytes, signedData);
 
             if (privateKeyBytes.length == 0) throw new PacketException("DECRYPTION_KEY_UNAVAILABLE", "Packet decryption is not configured", 503);
             var decryptionKey = KeyFactory.getInstance("RSA").generatePrivate(new PKCS8EncodedKeySpec(privateKeyBytes));
@@ -128,8 +125,46 @@ public class PacketCryptography {
             throw e;
         } catch (Exception e) {
             // Keep cryptographic details private: this includes bad RSA wrapping and failed GCM tags.
+            log.warn("Packet authentication or decryption failed: {}", e.toString());
             throw new PacketException("PACKET_AUTHENTICATION_FAILED", "Packet authentication or decryption failed", 422, e);
         }
+    }
+
+    /**
+     * Resolves candidate signing keys for a sender: device-registered keys
+     * take precedence, with statically configured trusted signers as fallback.
+     * Returns the first key that verifies the signature.
+     */
+    private RSAPublicKey resolveSigner(String senderVpa, byte[] signatureBytes, byte[] signedData) {
+        String sender = senderVpa.toLowerCase();
+        java.util.List<String> candidates = new java.util.ArrayList<>(deviceKeys.activePublicKeys(sender));
+        String staticKey = trustedSigners.get(sender);
+        if (staticKey != null && !candidates.contains(staticKey)) candidates.add(staticKey);
+        if (candidates.isEmpty())
+            throw new PacketException("UNTRUSTED_SENDER", "No trusted key is configured for this sender", 422);
+
+        boolean sawWeakKey = false;
+        for (String encoded : candidates) {
+            try {
+                var key = KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(decode(encoded, "trusted sender key")));
+                if (!(key instanceof RSAPublicKey rsa) || rsa.getModulus().bitLength() < 2048) {
+                    sawWeakKey = true;
+                    continue;
+                }
+                Signature verifier = Signature.getInstance("RSASSA-PSS");
+                verifier.setParameter(PSS);
+                verifier.initVerify(rsa);
+                verifier.update(signedData);
+                if (verifier.verify(signatureBytes)) return rsa;
+            } catch (PacketException e) {
+                sawWeakKey = true; // undecodable configured key; try remaining candidates
+            } catch (Exception e) {
+                // A candidate that cannot be parsed or used is skipped.
+            }
+        }
+        if (sawWeakKey && candidates.size() == 1)
+            throw new PacketException("WEAK_SIGNING_KEY", "Trusted sender key must be RSA 2048-bit or stronger", 422);
+        throw new PacketException("INVALID_SIGNATURE", "Packet signature verification failed", 422);
     }
 
     public String recipientPublicKey() {

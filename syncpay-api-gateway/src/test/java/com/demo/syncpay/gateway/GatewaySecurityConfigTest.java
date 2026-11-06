@@ -12,7 +12,7 @@ import org.springframework.test.web.reactive.server.WebTestClient;
 import static org.springframework.security.test.web.reactive.server.SecurityMockServerConfigurers.mockJwt;
 
 @WebFluxTest(controllers = FallbackController.class)
-@Import(GatewaySecurityConfig.class)
+@Import({GatewaySecurityConfig.class, GatewayCorsConfig.class})
 @ActiveProfiles("prod")
 @TestPropertySource(properties = {
         "SYNCPAY_JWKS_URI=https://issuer.example.test/keys",

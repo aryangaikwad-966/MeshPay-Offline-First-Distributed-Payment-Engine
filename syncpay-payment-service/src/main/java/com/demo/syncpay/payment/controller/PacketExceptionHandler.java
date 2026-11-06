@@ -31,6 +31,10 @@ public class PacketExceptionHandler {
         return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
                 .body(error("PERSISTENCE_UNAVAILABLE", "Packet was not confirmed; retry with the same packet"));
     }
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<?> invalidArgument(IllegalArgumentException e) {
+        return ResponseEntity.badRequest().body(error("INVALID_DEVICE_KEY", e.getMessage()));
+    }
     @ExceptionHandler(RequestNotPermitted.class)
     public ResponseEntity<?> rateLimited(RequestNotPermitted e) {
         return ResponseEntity.status(429).header("Retry-After", "1")
