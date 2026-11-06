@@ -354,7 +354,7 @@ export JAVA_HOME="$(/usr/libexec/java_home -v 17)"  # macOS; set JAVA_HOME manua
 - In the final controlled local-key check, the documented Alice signer first received `422 UNTRUSTED_SENDER`; the running service trusted only `test-sender@meshpay.local`. The local Compose helper was changed to add Alice without removing the existing signer. The exact previously rejected packet then returned `201 SYNCHRONIZED`, followed by `200 DUPLICATE`. Separate simulated packets were accepted during Kafka unavailability, before a Payment process restart, and while Saga was stopped. PostgreSQL retained committed outbox work, and restarted services processed all events. Aggregate state moved from one pre-existing payment/Saga to six; all six were locally `SETTLED` / `SAGA_COMPLETED`, with no pending outbox rows. No volumes were deleted, and these states represent simulation only.
 - Added generated-key signed-JWT/JWKS integration checks at Gateway, Payment, and Saga. Each suite verifies valid scope, insufficient scope, expired token, malformed token, invalid signature, wrong issuer, and wrong audience against a local ephemeral JWKS endpoint. This does not configure or prove a deployed identity provider or dashboard login.
 
-These controlled runtime runs are not a benchmark. Browser-generated Web Crypto acceptance and offline/reload/reconnect behavior remain unverified because no browser was available. `test-microservices.sh` is a legacy smoke script; it does not provision packet keys or exercise the browser flow.
+These controlled runtime runs are not a benchmark. Browser-generated Web Crypto acceptance and offline/reload/reconnect behavior remain unverified because no browser was available.
 
 ### Recorded results — 2026-11-06 (financial correctness release)
 
@@ -452,7 +452,6 @@ load-tests/                k6 load-test scripts
 terraform/                 AWS EC2 deployment (cloud-init + docker compose)
 sonar-project.properties   SonarQube scanner configuration
 docker-compose.yml         Local application and infrastructure stack
-test-microservices.sh      Legacy smoke script (not a packet-sync E2E test)
 ```
 
 ## License status
