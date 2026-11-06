@@ -6,8 +6,8 @@ spring:
     name: saga-service
   
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/meshpay_saga}
-    username: ${SPRING_DATASOURCE_USERNAME:meshpay}
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/syncpay_saga}
+    username: ${SPRING_DATASOURCE_USERNAME:syncpay}
     password: ${SPRING_DATASOURCE_PASSWORD:changeme}
     driver-class-name: org.postgresql.Driver
   
@@ -45,7 +45,7 @@ spring:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.apache.kafka.common.serialization.StringSerializer
 
-meshpay:
+syncpay:
   saga:
     recovery:
       # A non-terminal saga untouched for this long is a stuck candidate.

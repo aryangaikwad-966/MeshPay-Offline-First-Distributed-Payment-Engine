@@ -1,4 +1,4 @@
-package com.demo.meshpay.payment.config;
+package com.demo.syncpay.payment.config;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,9 +19,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Import({SecurityConfig.class, PaymentSecurityConfigTest.ProbeController.class})
 @ActiveProfiles("prod")
 @TestPropertySource(properties = {
-        "MESHPAY_JWKS_URI=https://issuer.example.test/keys",
-        "MESHPAY_JWT_ISSUER=https://issuer.example.test/",
-        "MESHPAY_JWT_AUDIENCE=meshpay"
+        "SYNCPAY_JWKS_URI=https://issuer.example.test/keys",
+        "SYNCPAY_JWT_ISSUER=https://issuer.example.test/",
+        "SYNCPAY_JWT_AUDIENCE=syncpay"
 })
 class PaymentSecurityConfigTest {
     @Autowired
@@ -35,14 +35,14 @@ class PaymentSecurityConfigTest {
     @Test
     void paymentOperationsRequireOperationsScope() throws Exception {
         mvc.perform(get("/api/payment/ops/probe")
-                        .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_meshpay:metrics:read"))))
+                        .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_syncpay:metrics:read"))))
                 .andExpect(status().isForbidden());
     }
 
     @Test
     void paymentOperationsAcceptOperationsScope() throws Exception {
         mvc.perform(get("/api/payment/ops/probe")
-                        .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_meshpay:ops"))))
+                        .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_syncpay:ops"))))
                 .andExpect(status().isOk());
     }
 
@@ -51,7 +51,7 @@ class PaymentSecurityConfigTest {
         mvc.perform(get("/api/payment/health")).andExpect(status().isOk());
         mvc.perform(get("/actuator/prometheus")).andExpect(status().isUnauthorized());
         mvc.perform(get("/actuator/prometheus")
-                        .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_meshpay:metrics:read"))))
+                        .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_syncpay:metrics:read"))))
                 .andExpect(status().isOk());
     }
 

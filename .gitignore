@@ -10,10 +10,10 @@ target/
 .env.*
 !.env.example
 .local-keys/
-meshpay-dashboard/node_modules/
-meshpay-dashboard/dist/
-meshpay-dashboard/tsconfig.tsbuildinfo
-meshpay-dashboard/coverage/
+syncpay-dashboard/node_modules/
+syncpay-dashboard/dist/
+syncpay-dashboard/tsconfig.tsbuildinfo
+syncpay-dashboard/coverage/
 
 # Terraform
 terraform/.terraform/

@@ -1,4 +1,4 @@
-package com.demo.meshpay.saga.config;
+package com.demo.syncpay.saga.config;
 
 import io.micrometer.core.instrument.MeterRegistry;
 import org.apache.kafka.common.TopicPartition;
@@ -18,7 +18,7 @@ public class KafkaRecoveryConfig {
                 (record, exception) -> new TopicPartition(record.topic() + ".DLT", -1));
         recoverer.setFailIfSendResultIsError(true);
         DefaultErrorHandler handler = new DefaultErrorHandler(recoverer, new FixedBackOff(1000L, 3L));
-        handler.setRetryListeners((record, exception, deliveryAttempt) -> metrics.counter("meshpay.kafka.consumer.retry").increment());
+        handler.setRetryListeners((record, exception, deliveryAttempt) -> metrics.counter("syncpay.kafka.consumer.retry").increment());
         return handler;
     }
 }

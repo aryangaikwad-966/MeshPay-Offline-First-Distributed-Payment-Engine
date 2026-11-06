@@ -18,8 +18,8 @@ const readKey = (name) => {
 
 const payment = {
   packetId: `demo-packet-${crypto.randomUUID()}`,
-  senderVpa: process.env.MESHPAY_SENDER_VPA || 'alice@meshpay.local',
-  receiverVpa: 'recipient@meshpay.local',
+  senderVpa: process.env.SYNCPAY_SENDER_VPA || 'alice@syncpay.local',
+  receiverVpa: 'recipient@syncpay.local',
   amount: '10.00',
   currency: 'USD',
   signedAt: Date.now(),
@@ -27,16 +27,16 @@ const payment = {
 };
 const aesKey = crypto.randomBytes(32);
 const iv = crypto.randomBytes(12);
-const aad = `meshpay-payment-aad-v1\n${payment.packetId}\n${payment.senderVpa}\n${payment.senderNonce}`;
+const aad = `syncpay-payment-aad-v1\n${payment.packetId}\n${payment.senderVpa}\n${payment.senderNonce}`;
 const cipher = crypto.createCipheriv('aes-256-gcm', aesKey, iv);
 cipher.setAAD(Buffer.from(aad));
 const encrypted = Buffer.concat([cipher.update(JSON.stringify(payment), 'utf8'), cipher.final(), cipher.getAuthTag()]);
-const recipientPublicKey = crypto.createPublicKey({ key: Buffer.from(readKey(process.env.MESHPAY_RECIPIENT_PUBLIC_KEY_FILE || 'recipient-public.spki.b64'), 'base64'), format: 'der', type: 'spki' });
+const recipientPublicKey = crypto.createPublicKey({ key: Buffer.from(readKey(process.env.SYNCPAY_RECIPIENT_PUBLIC_KEY_FILE || 'recipient-public.spki.b64'), 'base64'), format: 'der', type: 'spki' });
 const wrappedKey = crypto.publicEncrypt({ key: recipientPublicKey, padding: crypto.constants.RSA_PKCS1_OAEP_PADDING, oaepHash: 'sha256' }, aesKey);
 const iv64 = iv.toString('base64');
 const wrapped64 = wrappedKey.toString('base64');
 const ciphertext64 = encrypted.toString('base64');
-const canonical = `meshpay-encrypted-packet-v1\n${payment.packetId}\n${payment.senderVpa}\n${payment.senderNonce}\n${iv64}\n${wrapped64}\n${ciphertext64}`;
+const canonical = `syncpay-encrypted-packet-v1\n${payment.packetId}\n${payment.senderVpa}\n${payment.senderNonce}\n${iv64}\n${wrapped64}\n${ciphertext64}`;
 const signerPrivateKey = crypto.createPrivateKey({ key: Buffer.from(readKey('signer-private.pkcs8.b64'), 'base64'), format: 'der', type: 'pkcs8' });
 const signature = crypto.sign('sha256', Buffer.from(canonical), {
   key: signerPrivateKey,
@@ -55,6 +55,6 @@ const packet = {
   bridgeNodeId: 'local-demo',
   hopCount: 0,
 };
-const out = path.join('/tmp', `meshpay-packet-${crypto.randomUUID()}.json`);
+const out = path.join('/tmp', `syncpay-packet-${crypto.randomUUID()}.json`);
 fs.writeFileSync(out, JSON.stringify(packet, null, 2), { mode: 0o600 });
 console.log(`Encrypted packet written to ${out}`);

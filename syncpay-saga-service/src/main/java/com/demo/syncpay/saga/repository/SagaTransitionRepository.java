@@ -1,6 +1,6 @@
-package com.demo.meshpay.saga.repository;
+package com.demo.syncpay.saga.repository;
 
-import com.demo.meshpay.saga.model.SagaTransition;
+import com.demo.syncpay.saga.model.SagaTransition;
 import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.List;
 

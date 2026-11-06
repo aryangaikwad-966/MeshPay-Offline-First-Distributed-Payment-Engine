@@ -1,12 +1,12 @@
-package com.demo.meshpay.payment.service;
+package com.demo.syncpay.payment.service;
 
-import com.demo.meshpay.payment.api.PacketSyncResponse;
-import com.demo.meshpay.payment.api.PaymentPacketRequest;
-import com.demo.meshpay.payment.metrics.PacketMetrics;
-import com.demo.meshpay.payment.model.PacketAttempt;
-import com.demo.meshpay.payment.model.Transaction;
-import com.demo.meshpay.payment.repository.TransactionRepository;
-import com.demo.meshpay.payment.security.PacketCryptography;
+import com.demo.syncpay.payment.api.PacketSyncResponse;
+import com.demo.syncpay.payment.api.PaymentPacketRequest;
+import com.demo.syncpay.payment.metrics.PacketMetrics;
+import com.demo.syncpay.payment.model.PacketAttempt;
+import com.demo.syncpay.payment.model.Transaction;
+import com.demo.syncpay.payment.repository.TransactionRepository;
+import com.demo.syncpay.payment.security.PacketCryptography;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;
@@ -50,7 +50,7 @@ public class PaymentPacketSyncService {
         existing = transactions.findBySenderVpaAndNonce(sender, verified.payment().senderNonce()).orElse(null);
         if (existing != null) return replayOrDuplicate(envelope, verified.packetHash(), existing);
 
-        String key = "meshpay:idempotency:" + verified.packetHash();
+        String key = "syncpay:idempotency:" + verified.packetHash();
         String owner = UUID.randomUUID().toString();
         boolean ownsClaim = false;
         try {

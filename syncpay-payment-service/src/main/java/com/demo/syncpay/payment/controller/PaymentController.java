@@ -1,10 +1,10 @@
-package com.demo.meshpay.payment.controller;
+package com.demo.syncpay.payment.controller;
 
-import com.demo.meshpay.payment.model.Account;
-import com.demo.meshpay.payment.model.Transaction;
-import com.demo.meshpay.payment.repository.AccountRepository;
-import com.demo.meshpay.payment.repository.TransactionRepository;
-import com.demo.meshpay.payment.service.PaymentSettlementService;
+import com.demo.syncpay.payment.model.Account;
+import com.demo.syncpay.payment.model.Transaction;
+import com.demo.syncpay.payment.repository.AccountRepository;
+import com.demo.syncpay.payment.repository.TransactionRepository;
+import com.demo.syncpay.payment.service.PaymentSettlementService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;

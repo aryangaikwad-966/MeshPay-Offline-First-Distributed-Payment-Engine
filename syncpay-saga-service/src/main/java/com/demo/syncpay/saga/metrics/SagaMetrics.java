@@ -1,10 +1,10 @@
-package com.demo.meshpay.saga.metrics;
+package com.demo.syncpay.saga.metrics;
 
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
-import com.demo.meshpay.saga.repository.SagaStateRepository;
+import com.demo.syncpay.saga.repository.SagaStateRepository;
 import org.springframework.stereotype.Component;
 
 import java.util.List;

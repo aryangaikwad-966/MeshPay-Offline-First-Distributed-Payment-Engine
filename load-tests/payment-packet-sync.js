@@ -5,7 +5,7 @@
 // create packet JSON files first with the Node helper:
 //
 //   node scripts/create-payment-packet.js
-//   # writes /tmp/meshpay-packet-<uuid>.json
+//   # writes /tmp/syncpay-packet-<uuid>.json
 //
 // Then point PACKET_FILE at the generated file. Note: each packet is a
 // one-time credential (sender nonce replay protection), so this test is
@@ -13,7 +13,7 @@
 // not for unique successful submissions. To generate many unique packets,
 // loop the helper script and pass a directory via PACKET_DIR.
 //
-// Run: PACKET_FILE=/tmp/meshpay-packet-xxx.json k6 run load-tests/payment-packet-sync.js
+// Run: PACKET_FILE=/tmp/syncpay-packet-xxx.json k6 run load-tests/payment-packet-sync.js
 // Or:  GATEWAY_URL=http://localhost:8080 PACKET_FILES=/tmp/p1.json,/tmp/p2.json k6 run load-tests/payment-packet-sync.js
 
 import http from 'k6/http';
@@ -21,7 +21,7 @@ import { check, sleep } from 'k6';
 import { SharedArray } from 'k6/data';
 
 const GATEWAY_URL = __ENV.GATEWAY_URL || 'http://localhost:8080';
-const TOKEN = __ENV.MESHPAY_TOKEN || '';
+const TOKEN = __ENV.SYNCPAY_TOKEN || '';
 
 const headers = Object.assign(
   { 'Content-Type': 'application/json' },

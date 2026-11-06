@@ -1,8 +1,8 @@
-package com.demo.meshpay.payment.service;
+package com.demo.syncpay.payment.service;
 
-import com.demo.meshpay.payment.events.EventEnvelope;
-import com.demo.meshpay.payment.model.Outbox;
-import com.demo.meshpay.payment.repository.OutboxRepository;
+import com.demo.syncpay.payment.events.EventEnvelope;
+import com.demo.syncpay.payment.model.Outbox;
+import com.demo.syncpay.payment.repository.OutboxRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

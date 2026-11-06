@@ -10,10 +10,10 @@ terraform {
 
   # Remote state is recommended for team use; local state is fine for a demo.
   # backend "s3" {
-  #   bucket         = "meshpay-terraform-state"
-  #   key            = "meshpay/terraform.tfstate"
+  #   bucket         = "syncpay-terraform-state"
+  #   key            = "syncpay/terraform.tfstate"
   #   region         = "us-east-1"
-  #   dynamodb_table = "meshpay-terraform-locks"
+  #   dynamodb_table = "syncpay-terraform-locks"
   #   encrypt        = true
   # }
 }
@@ -23,7 +23,7 @@ provider "aws" {
 
   default_tags {
     tags = {
-      Project     = "meshpay"
+      Project     = "syncpay"
       ManagedBy   = "terraform"
       Environment = var.environment
     }

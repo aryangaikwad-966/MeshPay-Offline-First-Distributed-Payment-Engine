@@ -1,4 +1,4 @@
-package com.demo.meshpay.payment.config;
+package com.demo.syncpay.payment.config;
 
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSHeader;
@@ -33,12 +33,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Import({SecurityConfig.class, PaymentSecurityConfigTest.ProbeController.class})
 @ActiveProfiles("prod")
 @TestPropertySource(properties = {
-        "MESHPAY_JWT_ISSUER=https://meshpay.test/",
-        "MESHPAY_JWT_AUDIENCE=meshpay"
+        "SYNCPAY_JWT_ISSUER=https://syncpay.test/",
+        "SYNCPAY_JWT_AUDIENCE=syncpay"
 })
 class PaymentJwtJwksIntegrationTest {
-    private static final String ISSUER = "https://meshpay.test/";
-    private static final String AUDIENCE = "meshpay";
+    private static final String ISSUER = "https://syncpay.test/";
+    private static final String AUDIENCE = "syncpay";
     private static RSAKey trustedKey;
     private static RSAKey untrustedKey;
     private static HttpServer jwksServer;
@@ -49,7 +49,7 @@ class PaymentJwtJwksIntegrationTest {
     @DynamicPropertySource
     static void jwksProperties(DynamicPropertyRegistry registry) {
         ensureTestIssuer();
-        registry.add("MESHPAY_JWKS_URI", () -> "http://127.0.0.1:" + jwksServer.getAddress().getPort() + "/jwks");
+        registry.add("SYNCPAY_JWKS_URI", () -> "http://127.0.0.1:" + jwksServer.getAddress().getPort() + "/jwks");
     }
 
     @BeforeAll
@@ -65,24 +65,24 @@ class PaymentJwtJwksIntegrationTest {
     @Test
     void signedTokenFromConfiguredJwksWithRequiredScopeIsAccepted() throws Exception {
         mvc.perform(get("/api/payment/ops/probe").header("Authorization", bearer(token(trustedKey, ISSUER, AUDIENCE,
-                        Instant.now().plusSeconds(120), "meshpay:ops"))))
+                        Instant.now().plusSeconds(120), "syncpay:ops"))))
                 .andExpect(status().isOk());
     }
 
     @Test
     void signedTokenWithoutRequiredScopeIsForbidden() throws Exception {
         mvc.perform(get("/api/payment/ops/probe").header("Authorization", bearer(token(trustedKey, ISSUER, AUDIENCE,
-                        Instant.now().plusSeconds(120), "meshpay:metrics:read"))))
+                        Instant.now().plusSeconds(120), "syncpay:metrics:read"))))
                 .andExpect(status().isForbidden());
     }
 
     @Test
     void expiredWrongIssuerWrongAudienceMalformedAndWronglySignedTokensAreRejected() throws Exception {
-        assertUnauthorized(token(trustedKey, ISSUER, AUDIENCE, Instant.now().minusSeconds(30), "meshpay:ops"));
+        assertUnauthorized(token(trustedKey, ISSUER, AUDIENCE, Instant.now().minusSeconds(30), "syncpay:ops"));
         assertUnauthorized(token(trustedKey, "https://wrong-issuer.test/", AUDIENCE,
-                Instant.now().plusSeconds(120), "meshpay:ops"));
-        assertUnauthorized(token(trustedKey, ISSUER, "wrong-audience", Instant.now().plusSeconds(120), "meshpay:ops"));
-        assertUnauthorized(token(untrustedKey, ISSUER, AUDIENCE, Instant.now().plusSeconds(120), "meshpay:ops"));
+                Instant.now().plusSeconds(120), "syncpay:ops"));
+        assertUnauthorized(token(trustedKey, ISSUER, "wrong-audience", Instant.now().plusSeconds(120), "syncpay:ops"));
+        assertUnauthorized(token(untrustedKey, ISSUER, AUDIENCE, Instant.now().plusSeconds(120), "syncpay:ops"));
         mvc.perform(get("/api/payment/ops/probe").header("Authorization", "Bearer malformed.token.value"))
                 .andExpect(status().isUnauthorized());
     }
@@ -98,7 +98,7 @@ class PaymentJwtJwksIntegrationTest {
         Instant now = Instant.now();
         JWTClaimsSet claims = new JWTClaimsSet.Builder()
                 .issuer(issuer)
-                .subject("meshpay-test-operator")
+                .subject("syncpay-test-operator")
                 .audience(audience)
                 .issueTime(Date.from(now.minusSeconds(1)))
                 .notBeforeTime(Date.from(now.minusSeconds(1)))
@@ -113,7 +113,7 @@ class PaymentJwtJwksIntegrationTest {
     private static synchronized void ensureTestIssuer() {
         if (jwksServer != null) return;
         try {
-            trustedKey = new RSAKeyGenerator(2048).keyID("meshpay-integration-key").generate();
+            trustedKey = new RSAKeyGenerator(2048).keyID("syncpay-integration-key").generate();
             untrustedKey = new RSAKeyGenerator(2048).keyID("untrusted-integration-key").generate();
             byte[] body = new JWKSet(trustedKey.toPublicJWK()).toString().getBytes(StandardCharsets.UTF_8);
             jwksServer = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);

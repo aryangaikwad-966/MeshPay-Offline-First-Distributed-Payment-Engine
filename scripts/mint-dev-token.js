@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 
-// Development-only JWT tool for MeshPay's secured (non-dev) profile.
+// Development-only JWT tool for SyncPay's secured (non-dev) profile.
 //
-// The backend services validate JWTs via JWKS (MESHPAY_JWKS_URI) with issuer
+// The backend services validate JWTs via JWKS (SYNCPAY_JWKS_URI) with issuer
 // and audience checks. This script provides the missing issuer for local work:
 //
 //   1. Generate a persistent dev RSA keypair under .local-keys/ (git-ignored).
@@ -11,12 +11,12 @@
 //
 // Usage:
 //   node scripts/mint-dev-token.js serve [--port 8799]
-//   node scripts/mint-dev-token.js mint --role ADMIN [--sub ops] [--scope "meshpay:ops meshpay:metrics:read"] [--ttl 3600]
+//   node scripts/mint-dev-token.js mint --role ADMIN [--sub ops] [--scope "syncpay:ops syncpay:metrics:read"] [--ttl 3600]
 //
 // Then point the services at the JWKS endpoint, e.g. in .env:
-//   MESHPAY_JWKS_URI=http://localhost:8799/.well-known/jwks.json
-//   MESHPAY_JWT_ISSUER=meshpay-dev
-//   MESHPAY_JWT_AUDIENCE=meshpay
+//   SYNCPAY_JWKS_URI=http://localhost:8799/.well-known/jwks.json
+//   SYNCPAY_JWT_ISSUER=syncpay-dev
+//   SYNCPAY_JWT_AUDIENCE=syncpay
 //
 // NEVER use this for real credentials. Keys are dev-only and stored locally.
 
@@ -28,9 +28,9 @@ const path = require('node:path');
 const KEY_DIR = path.join(__dirname, '..', '.local-keys');
 const PRIVATE_FILE = path.join(KEY_DIR, 'dev-jwt-private.pem');
 const PUBLIC_FILE = path.join(KEY_DIR, 'dev-jwt-public.pem');
-const ISSUER = 'meshpay-dev';
-const AUDIENCE = 'meshpay';
-const KID = 'meshpay-dev-key-1';
+const ISSUER = 'syncpay-dev';
+const AUDIENCE = 'syncpay';
+const KID = 'syncpay-dev-key-1';
 
 function ensureKeys() {
   fs.mkdirSync(KEY_DIR, { recursive: true, mode: 0o700 });
@@ -87,9 +87,9 @@ function mint({ sub = 'dev-operator', role = 'ADMIN', scope, ttl = 3600, name, e
 
 function defaultScope(role) {
   switch (role) {
-    case 'ADMIN': return 'meshpay:ops meshpay:metrics:read meshpay:admin';
-    case 'MERCHANT': return 'meshpay:merchant';
-    default: return 'meshpay:customer';
+    case 'ADMIN': return 'syncpay:ops syncpay:metrics:read syncpay:admin';
+    case 'MERCHANT': return 'syncpay:merchant';
+    default: return 'syncpay:customer';
   }
 }
 
@@ -113,8 +113,8 @@ if (command === 'serve') {
     }
   }).listen(port, () => {
     console.log(`Dev JWKS endpoint: http://localhost:${port}/.well-known/jwks.json`);
-    console.log(`Set MESHPAY_JWKS_URI=http://localhost:${port}/.well-known/jwks.json`);
-    console.log(`Set MESHPAY_JWT_ISSUER=${ISSUER} and MESHPAY_JWT_AUDIENCE=${AUDIENCE}`);
+    console.log(`Set SYNCPAY_JWKS_URI=http://localhost:${port}/.well-known/jwks.json`);
+    console.log(`Set SYNCPAY_JWT_ISSUER=${ISSUER} and SYNCPAY_JWT_AUDIENCE=${AUDIENCE}`);
   });
 } else if (command === 'mint') {
   const token = mint({

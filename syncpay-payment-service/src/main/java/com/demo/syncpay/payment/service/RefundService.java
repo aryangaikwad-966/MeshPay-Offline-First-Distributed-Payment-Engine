@@ -1,12 +1,12 @@
-package com.demo.meshpay.payment.service;
+package com.demo.syncpay.payment.service;
 
-import com.demo.meshpay.payment.events.EventEnvelope;
-import com.demo.meshpay.payment.model.Refund;
-import com.demo.meshpay.payment.model.Transaction;
-import com.demo.meshpay.payment.repository.RefundRepository;
-import com.demo.meshpay.payment.repository.TransactionRepository;
-import com.demo.meshpay.payment.model.PaymentLifecycleEvent;
-import com.demo.meshpay.payment.repository.PaymentLifecycleEventRepository;
+import com.demo.syncpay.payment.events.EventEnvelope;
+import com.demo.syncpay.payment.model.Refund;
+import com.demo.syncpay.payment.model.Transaction;
+import com.demo.syncpay.payment.repository.RefundRepository;
+import com.demo.syncpay.payment.repository.TransactionRepository;
+import com.demo.syncpay.payment.model.PaymentLifecycleEvent;
+import com.demo.syncpay.payment.repository.PaymentLifecycleEventRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;

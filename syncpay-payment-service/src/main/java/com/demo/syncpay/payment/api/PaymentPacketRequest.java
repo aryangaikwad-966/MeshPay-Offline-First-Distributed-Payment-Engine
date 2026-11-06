@@ -1,4 +1,4 @@
-package com.demo.meshpay.payment.api;
+package com.demo.syncpay.payment.api;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;

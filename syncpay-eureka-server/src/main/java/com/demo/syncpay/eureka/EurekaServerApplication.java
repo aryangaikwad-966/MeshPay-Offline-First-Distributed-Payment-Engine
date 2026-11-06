@@ -1,4 +1,4 @@
-package com.demo.meshpay.eureka;
+package com.demo.syncpay.eureka;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -6,7 +6,7 @@ import org.springframework.cloud.netflix.eureka.server.EnableEurekaServer;
 
 /**
  * Eureka Server Application
- * Service Discovery for MeshPay Microservices
+ * Service Discovery for SyncPay Microservices
  */
 @SpringBootApplication
 @EnableEurekaServer

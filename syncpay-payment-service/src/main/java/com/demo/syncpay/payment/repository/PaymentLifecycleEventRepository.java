@@ -1,6 +1,6 @@
-package com.demo.meshpay.payment.repository;
+package com.demo.syncpay.payment.repository;
 
-import com.demo.meshpay.payment.model.PaymentLifecycleEvent;
+import com.demo.syncpay.payment.model.PaymentLifecycleEvent;
 import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.List;
 

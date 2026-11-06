@@ -1,4 +1,4 @@
-package com.demo.meshpay.saga.config;
+package com.demo.syncpay.saga.config;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,9 +19,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Import({SecurityConfig.class, SagaSecurityConfigTest.ProbeController.class})
 @ActiveProfiles("prod")
 @TestPropertySource(properties = {
-        "MESHPAY_JWKS_URI=https://issuer.example.test/keys",
-        "MESHPAY_JWT_ISSUER=https://issuer.example.test/",
-        "MESHPAY_JWT_AUDIENCE=meshpay"
+        "SYNCPAY_JWKS_URI=https://issuer.example.test/keys",
+        "SYNCPAY_JWT_ISSUER=https://issuer.example.test/",
+        "SYNCPAY_JWT_AUDIENCE=syncpay"
 })
 class SagaSecurityConfigTest {
     @Autowired
@@ -35,14 +35,14 @@ class SagaSecurityConfigTest {
     @Test
     void sagaOperationsRequireOperationsScope() throws Exception {
         mvc.perform(get("/api/saga/ops/probe")
-                        .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_meshpay:metrics:read"))))
+                        .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_syncpay:metrics:read"))))
                 .andExpect(status().isForbidden());
     }
 
     @Test
     void sagaOperationsAcceptOperationsScope() throws Exception {
         mvc.perform(get("/api/saga/ops/probe")
-                        .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_meshpay:ops"))))
+                        .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_syncpay:ops"))))
                 .andExpect(status().isOk());
     }
 

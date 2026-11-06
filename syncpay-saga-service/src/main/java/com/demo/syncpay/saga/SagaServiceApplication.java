@@ -1,4 +1,4 @@
-package com.demo.meshpay.saga;
+package com.demo.syncpay.saga;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;

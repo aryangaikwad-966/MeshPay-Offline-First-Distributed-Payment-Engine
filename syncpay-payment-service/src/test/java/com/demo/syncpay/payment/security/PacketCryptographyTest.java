@@ -1,7 +1,7 @@
-package com.demo.meshpay.payment.security;
+package com.demo.syncpay.payment.security;
 
-import com.demo.meshpay.payment.api.DecryptedPaymentPacket;
-import com.demo.meshpay.payment.api.PaymentPacketRequest;
+import com.demo.syncpay.payment.api.DecryptedPaymentPacket;
+import com.demo.syncpay.payment.api.PaymentPacketRequest;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -103,11 +103,11 @@ class PacketCryptographyTest {
     }
 
     private static byte[] aad(DecryptedPaymentPacket p) {
-        return String.join("\n", "meshpay-payment-aad-v1", p.packetId(), p.senderVpa().toLowerCase(), p.senderNonce()).getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        return String.join("\n", "syncpay-payment-aad-v1", p.packetId(), p.senderVpa().toLowerCase(), p.senderNonce()).getBytes(java.nio.charset.StandardCharsets.UTF_8);
     }
 
     private static PaymentPacketRequest sign(String id, String sender, String nonce, String iv, String key, String ciphertext) throws Exception {
-        String canonical = String.join("\n", "meshpay-encrypted-packet-v1", id, sender.toLowerCase(), nonce, iv, key, ciphertext);
+        String canonical = String.join("\n", "syncpay-encrypted-packet-v1", id, sender.toLowerCase(), nonce, iv, key, ciphertext);
         Signature signature = Signature.getInstance("RSASSA-PSS");
         signature.setParameter(new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1));
         signature.initSign(signer.getPrivate());

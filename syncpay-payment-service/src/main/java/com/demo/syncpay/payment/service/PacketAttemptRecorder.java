@@ -1,7 +1,7 @@
-package com.demo.meshpay.payment.service;
+package com.demo.syncpay.payment.service;
 
-import com.demo.meshpay.payment.model.PacketAttempt;
-import com.demo.meshpay.payment.repository.PacketAttemptRepository;
+import com.demo.syncpay.payment.model.PacketAttempt;
+import com.demo.syncpay.payment.repository.PacketAttemptRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;

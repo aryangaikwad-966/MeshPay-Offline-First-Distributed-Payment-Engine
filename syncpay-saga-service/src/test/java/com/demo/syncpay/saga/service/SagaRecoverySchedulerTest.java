@@ -1,9 +1,9 @@
-package com.demo.meshpay.saga.service;
+package com.demo.syncpay.saga.service;
 
-import com.demo.meshpay.saga.model.SagaCommandOutbox;
-import com.demo.meshpay.saga.model.SagaState;
-import com.demo.meshpay.saga.repository.SagaCommandOutboxRepository;
-import com.demo.meshpay.saga.repository.SagaStateRepository;
+import com.demo.syncpay.saga.model.SagaCommandOutbox;
+import com.demo.syncpay.saga.model.SagaState;
+import com.demo.syncpay.saga.repository.SagaCommandOutboxRepository;
+import com.demo.syncpay.saga.repository.SagaStateRepository;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;

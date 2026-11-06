@@ -1,6 +1,6 @@
-package com.demo.meshpay.payment.config;
+package com.demo.syncpay.payment.config;
 
-import com.demo.meshpay.payment.consumer.KafkaCorrelationInterceptor;
+import com.demo.syncpay.payment.consumer.KafkaCorrelationInterceptor;
 import org.springframework.beans.factory.config.BeanPostProcessor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

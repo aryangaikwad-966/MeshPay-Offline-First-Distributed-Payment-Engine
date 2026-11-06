@@ -1,7 +1,7 @@
-package com.demo.meshpay.saga.controller;
+package com.demo.syncpay.saga.controller;
 
-import com.demo.meshpay.saga.model.SagaState;
-import com.demo.meshpay.saga.service.PaymentSagaOrchestrator;
+import com.demo.syncpay.saga.model.SagaState;
+import com.demo.syncpay.saga.service.PaymentSagaOrchestrator;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;

@@ -1,4 +1,4 @@
-package com.demo.meshpay.payment.config;
+package com.demo.syncpay.payment.config;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;

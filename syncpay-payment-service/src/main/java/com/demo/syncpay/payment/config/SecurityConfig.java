@@ -1,4 +1,4 @@
-package com.demo.meshpay.payment.config;
+package com.demo.syncpay.payment.config;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -33,20 +33,20 @@ public class SecurityConfig {
         return http.csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/actuator/health", "/actuator/health/**", "/api/payment/health").permitAll()
-                        .requestMatchers("/actuator/prometheus").hasAuthority("SCOPE_meshpay:metrics:read")
-                        .requestMatchers("/api/payment/ops/**").hasAuthority("SCOPE_meshpay:ops")
-                        .requestMatchers("/actuator/**").hasAuthority("SCOPE_meshpay:ops")
+                        .requestMatchers("/actuator/prometheus").hasAuthority("SCOPE_syncpay:metrics:read")
+                        .requestMatchers("/api/payment/ops/**").hasAuthority("SCOPE_syncpay:ops")
+                        .requestMatchers("/actuator/**").hasAuthority("SCOPE_syncpay:ops")
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> {})).build();
     }
 
     @Bean
     @Profile("!dev")
-    JwtDecoder jwtDecoder(@Value("${MESHPAY_JWKS_URI:}") String jwksUri,
-                          @Value("${MESHPAY_JWT_ISSUER:}") String issuer,
-                          @Value("${MESHPAY_JWT_AUDIENCE:}") String audience) {
+    JwtDecoder jwtDecoder(@Value("${SYNCPAY_JWKS_URI:}") String jwksUri,
+                          @Value("${SYNCPAY_JWT_ISSUER:}") String issuer,
+                          @Value("${SYNCPAY_JWT_AUDIENCE:}") String audience) {
         if (jwksUri.isBlank() || issuer.isBlank() || audience.isBlank())
-            throw new IllegalStateException("MESHPAY_JWKS_URI, MESHPAY_JWT_ISSUER, and MESHPAY_JWT_AUDIENCE are required outside the dev profile");
+            throw new IllegalStateException("SYNCPAY_JWKS_URI, SYNCPAY_JWT_ISSUER, and SYNCPAY_JWT_AUDIENCE are required outside the dev profile");
         NimbusJwtDecoder decoder = NimbusJwtDecoder.withJwkSetUri(jwksUri).build();
         OAuth2TokenValidator<Jwt> issuerValidator = JwtValidators.createDefaultWithIssuer(issuer);
         OAuth2TokenValidator<Jwt> audienceValidator = token -> token.getAudience().contains(audience)

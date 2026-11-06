@@ -1,9 +1,9 @@
-package com.demo.meshpay.saga.service;
+package com.demo.syncpay.saga.service;
 
-import com.demo.meshpay.saga.model.SagaState;
-import com.demo.meshpay.saga.repository.SagaStateRepository;
-import com.demo.meshpay.saga.model.SagaTransition;
-import com.demo.meshpay.saga.repository.SagaTransitionRepository;
+import com.demo.syncpay.saga.model.SagaState;
+import com.demo.syncpay.saga.repository.SagaStateRepository;
+import com.demo.syncpay.saga.model.SagaTransition;
+import com.demo.syncpay.saga.repository.SagaTransitionRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;

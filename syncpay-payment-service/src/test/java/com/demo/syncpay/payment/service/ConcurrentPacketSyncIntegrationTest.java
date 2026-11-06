@@ -1,11 +1,11 @@
-package com.demo.meshpay.payment.service;
+package com.demo.syncpay.payment.service;
 
-import com.demo.meshpay.payment.api.DecryptedPaymentPacket;
-import com.demo.meshpay.payment.api.PacketSyncResponse;
-import com.demo.meshpay.payment.api.PaymentPacketRequest;
-import com.demo.meshpay.payment.model.Outbox;
-import com.demo.meshpay.payment.repository.OutboxRepository;
-import com.demo.meshpay.payment.repository.TransactionRepository;
+import com.demo.syncpay.payment.api.DecryptedPaymentPacket;
+import com.demo.syncpay.payment.api.PacketSyncResponse;
+import com.demo.syncpay.payment.api.PaymentPacketRequest;
+import com.demo.syncpay.payment.model.Outbox;
+import com.demo.syncpay.payment.repository.OutboxRepository;
+import com.demo.syncpay.payment.repository.TransactionRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -52,10 +52,10 @@ class ConcurrentPacketSyncIntegrationTest {
         properties.add("spring.data.redis.password", () -> "");
         properties.add("spring.kafka.listener.auto-startup", () -> "false");
         properties.add("eureka.client.enabled", () -> "false");
-        properties.add("meshpay.outbox.enabled", () -> "false");
-        properties.add("meshpay.packet.server-private-key", () -> b64(RECIPIENT.getPrivate().getEncoded()));
-        properties.add("meshpay.packet.server-public-key", () -> b64(RECIPIENT.getPublic().getEncoded()));
-        properties.add("meshpay.packet.trusted-signers", () -> "alice@demo=" + b64(SIGNER.getPublic().getEncoded()));
+        properties.add("syncpay.outbox.enabled", () -> "false");
+        properties.add("syncpay.packet.server-private-key", () -> b64(RECIPIENT.getPrivate().getEncoded()));
+        properties.add("syncpay.packet.server-public-key", () -> b64(RECIPIENT.getPublic().getEncoded()));
+        properties.add("syncpay.packet.trusted-signers", () -> "alice@demo=" + b64(SIGNER.getPublic().getEncoded()));
     }
 
     @Autowired PaymentPacketSyncService syncService;
@@ -103,14 +103,14 @@ class ConcurrentPacketSyncIntegrationTest {
         byte[] aes = new byte[32]; new SecureRandom().nextBytes(aes);
         Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
         cipher.init(Cipher.ENCRYPT_MODE, new javax.crypto.spec.SecretKeySpec(aes, "AES"), new GCMParameterSpec(128, iv));
-        cipher.updateAAD(String.join("\n", "meshpay-payment-aad-v1", packetId, "alice@demo", nonce).getBytes(StandardCharsets.UTF_8));
+        cipher.updateAAD(String.join("\n", "syncpay-payment-aad-v1", packetId, "alice@demo", nonce).getBytes(StandardCharsets.UTF_8));
         byte[] ciphertext = cipher.doFinal(mapper.writeValueAsBytes(payment));
         Cipher wrapper = Cipher.getInstance("RSA/ECB/OAEPWithSHA-256AndMGF1Padding");
         wrapper.init(Cipher.ENCRYPT_MODE, RECIPIENT.getPublic(), new OAEPParameterSpec("SHA-256", "MGF1",
                 MGF1ParameterSpec.SHA256, PSource.PSpecified.DEFAULT));
         byte[] wrapped = wrapper.doFinal(aes); Arrays.fill(aes, (byte) 0);
         String iv64 = b64(iv), wrapped64 = b64(wrapped), ciphertext64 = b64(ciphertext);
-        String canonical = String.join("\n", "meshpay-encrypted-packet-v1", packetId, "alice@demo", nonce, iv64, wrapped64, ciphertext64);
+        String canonical = String.join("\n", "syncpay-encrypted-packet-v1", packetId, "alice@demo", nonce, iv64, wrapped64, ciphertext64);
         Signature signature = Signature.getInstance("RSASSA-PSS");
         signature.setParameter(new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1));
         signature.initSign(SIGNER.getPrivate()); signature.update(canonical.getBytes(StandardCharsets.UTF_8));

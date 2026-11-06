@@ -24,9 +24,9 @@ data "aws_ami" "ubuntu" {
   }
 }
 
-resource "aws_security_group" "meshpay" {
-  name        = "meshpay-${var.environment}"
-  description = "MeshPay application ports"
+resource "aws_security_group" "syncpay" {
+  name        = "syncpay-${var.environment}"
+  description = "SyncPay application ports"
   vpc_id      = data.aws_vpc.default.id
 
   ingress {
@@ -41,7 +41,7 @@ resource "aws_security_group" "meshpay" {
   dynamic "ingress" {
     for_each = { for p in [3001, 8080] : p => p }
     content {
-      description = "MeshPay app port ${ingress.key}"
+      description = "SyncPay app port ${ingress.key}"
       from_port   = ingress.key
       to_port     = ingress.key
       protocol    = "tcp"
@@ -56,17 +56,17 @@ resource "aws_security_group" "meshpay" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  tags = { Name = "meshpay-${var.environment}" }
+  tags = { Name = "syncpay-${var.environment}" }
 }
 
-resource "aws_key_pair" "meshpay" {
+resource "aws_key_pair" "syncpay" {
   count      = var.ssh_public_key != "" ? 1 : 0
-  key_name   = "meshpay-${var.environment}"
+  key_name   = "syncpay-${var.environment}"
   public_key = var.ssh_public_key
 }
 
 locals {
-  key_name = var.ssh_public_key != "" ? aws_key_pair.meshpay[0].key_name : var.key_name
+  key_name = var.ssh_public_key != "" ? aws_key_pair.syncpay[0].key_name : var.key_name
 
   extra_env_lines = join("\n", [for k, v in var.extra_env : "${k}=${v}"])
 
@@ -77,11 +77,11 @@ locals {
   })
 }
 
-resource "aws_instance" "meshpay" {
+resource "aws_instance" "syncpay" {
   ami                    = data.aws_ami.ubuntu.id
   instance_type          = var.instance_type
   subnet_id              = data.aws_subnets.default.ids[0]
-  vpc_security_group_ids = [aws_security_group.meshpay.id]
+  vpc_security_group_ids = [aws_security_group.syncpay.id]
   key_name               = local.key_name
 
   root_block_device {
@@ -91,5 +91,5 @@ resource "aws_instance" "meshpay" {
 
   user_data = local.user_data
 
-  tags = { Name = "meshpay-${var.environment}" }
+  tags = { Name = "syncpay-${var.environment}" }
 }

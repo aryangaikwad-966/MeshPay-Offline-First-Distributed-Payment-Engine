@@ -1,4 +1,4 @@
-package com.demo.meshpay.payment.migration;
+package com.demo.syncpay.payment.migration;
 
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Test;
@@ -46,7 +46,7 @@ class PaymentMigrationIntegrationTest {
     void unversionedNonEmptyDatabaseIsBaselinedThenMigratedWithoutLosingRows() throws Exception {
         migrate("legacy_payment");
         try (Connection connection = connection("legacy_payment"); Statement statement = connection.createStatement()) {
-            statement.executeUpdate("INSERT INTO transactions(packet_hash,packet_id,sender_vpa,receiver_vpa,nonce,currency,amount,signed_at,settled_at,synchronized_at,bridge_node_id,hop_count,status) VALUES ('hash-existing','packet-existing','a@meshpay.local','b@meshpay.local','nonce-existing','USD',12.50,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,'bridge',0,'SETTLED')");
+            statement.executeUpdate("INSERT INTO transactions(packet_hash,packet_id,sender_vpa,receiver_vpa,nonce,currency,amount,signed_at,settled_at,synchronized_at,bridge_node_id,hop_count,status) VALUES ('hash-existing','packet-existing','a@syncpay.local','b@syncpay.local','nonce-existing','USD',12.50,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,'bridge',0,'SETTLED')");
             statement.execute("DROP TABLE legacy_payment.flyway_schema_history");
         }
 

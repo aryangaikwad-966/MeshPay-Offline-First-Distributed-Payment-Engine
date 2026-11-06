@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euxo pipefail
 
-# MeshPay cloud-init: install Docker, clone the repo, deploy docker-compose.
+# SyncPay cloud-init: install Docker, clone the repo, deploy docker-compose.
 
 export DEBIAN_FRONTEND=noninteractive
 
@@ -17,15 +17,15 @@ curl -fsSL https://github.com/docker/compose/releases/latest/download/docker-com
 chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
 docker compose version
 
-# Clone MeshPay and start the stack
+# Clone SyncPay and start the stack
 cd /opt
-git clone --branch "${repo_ref}" --depth 1 "${repo_url}" meshpay
-cd /opt/meshpay
+git clone --branch "${repo_ref}" --depth 1 "${repo_url}" syncpay
+cd /opt/syncpay
 cp .env.example .env
 
-%{ if extra_env_lines != "" }cat >> .env <<'MESHPAY_EXTRA_ENV'
+%{ if extra_env_lines != "" }cat >> .env <<'SYNCPAY_EXTRA_ENV'
 ${extra_env_lines}
-MESHPAY_EXTRA_ENV
+SYNCPAY_EXTRA_ENV
 %{ endif }
 
 docker compose up -d --build

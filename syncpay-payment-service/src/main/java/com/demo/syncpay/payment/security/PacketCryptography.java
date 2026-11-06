@@ -1,7 +1,7 @@
-package com.demo.meshpay.payment.security;
+package com.demo.syncpay.payment.security;
 
-import com.demo.meshpay.payment.api.DecryptedPaymentPacket;
-import com.demo.meshpay.payment.api.PaymentPacketRequest;
+import com.demo.syncpay.payment.api.DecryptedPaymentPacket;
+import com.demo.syncpay.payment.api.PaymentPacketRequest;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
 import jakarta.annotation.PostConstruct;
@@ -42,10 +42,10 @@ public class PacketCryptography {
     private final Duration maxAge;
 
     public PacketCryptography(ObjectMapper mapper,
-            @Value("${meshpay.packet.server-private-key:}") String privateKey,
-            @Value("${meshpay.packet.server-public-key:}") String publicKey,
-            @Value("${meshpay.packet.trusted-signers:}") String trustedSigners,
-            @Value("${meshpay.packet.max-offline-age:30d}") Duration maxAge) {
+            @Value("${syncpay.packet.server-private-key:}") String privateKey,
+            @Value("${syncpay.packet.server-public-key:}") String publicKey,
+            @Value("${syncpay.packet.trusted-signers:}") String trustedSigners,
+            @Value("${syncpay.packet.max-offline-age:30d}") Duration maxAge) {
         this.mapper = mapper;
         this.privateKeyBytes = privateKey == null || privateKey.isBlank() ? new byte[0] : decode(privateKey, "private key");
         this.publicKeyBase64 = publicKey == null ? "" : publicKey;
@@ -61,7 +61,7 @@ public class PacketCryptography {
         boolean hasPrivate = privateKeyBytes.length > 0;
         boolean hasPublic = !publicKeyBase64.isBlank();
         if (hasPrivate != hasPublic)
-            throw new IllegalStateException("Configure both MESHPAY_PACKET_RSA_PRIVATE_KEY and MESHPAY_PACKET_RSA_PUBLIC_KEY, or neither");
+            throw new IllegalStateException("Configure both SYNCPAY_PACKET_RSA_PRIVATE_KEY and SYNCPAY_PACKET_RSA_PUBLIC_KEY, or neither");
         if (!hasPrivate) return; // local UI and other APIs can run without packet sync enabled
         try {
             var privateKey = KeyFactory.getInstance("RSA").generatePrivate(new PKCS8EncodedKeySpec(privateKeyBytes));
@@ -116,7 +116,7 @@ public class PacketCryptography {
                 try {
                     DecryptedPaymentPacket payment = mapper.readValue(plaintext, DecryptedPaymentPacket.class);
                     validatePayload(envelope, payment);
-                    String logicalKey = String.join("\n", "meshpay-payment-v1", payment.packetId(),
+                    String logicalKey = String.join("\n", "syncpay-payment-v1", payment.packetId(),
                             payment.senderVpa().toLowerCase(), payment.receiverVpa().toLowerCase(),
                             payment.amount().stripTrailingZeros().toPlainString(), payment.currency(),
                             Long.toString(payment.signedAt()), payment.senderNonce());
@@ -159,12 +159,12 @@ public class PacketCryptography {
     }
 
     private byte[] aad(PaymentPacketRequest p) {
-        return String.join("\n", "meshpay-payment-aad-v1", p.packetId(), p.senderVpa().toLowerCase(), p.senderNonce())
+        return String.join("\n", "syncpay-payment-aad-v1", p.packetId(), p.senderVpa().toLowerCase(), p.senderNonce())
                 .getBytes(StandardCharsets.UTF_8);
     }
 
     private byte[] canonicalEnvelope(PaymentPacketRequest p, byte[] iv, byte[] key, byte[] ciphertext) {
-        return String.join("\n", "meshpay-encrypted-packet-v1", p.packetId(), p.senderVpa().toLowerCase(), p.senderNonce(),
+        return String.join("\n", "syncpay-encrypted-packet-v1", p.packetId(), p.senderVpa().toLowerCase(), p.senderNonce(),
                 Base64.getEncoder().encodeToString(iv), Base64.getEncoder().encodeToString(key),
                 Base64.getEncoder().encodeToString(ciphertext)).getBytes(StandardCharsets.UTF_8);
     }

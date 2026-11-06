@@ -1,15 +1,15 @@
-package com.demo.meshpay.payment.service;
+package com.demo.syncpay.payment.service;
 
-import com.demo.meshpay.payment.model.Account;
-import com.demo.meshpay.payment.model.LedgerEntry;
-import com.demo.meshpay.payment.model.Outbox;
-import com.demo.meshpay.payment.model.Refund;
-import com.demo.meshpay.payment.model.Transaction;
-import com.demo.meshpay.payment.repository.AccountRepository;
-import com.demo.meshpay.payment.repository.LedgerEntryRepository;
-import com.demo.meshpay.payment.repository.OutboxRepository;
-import com.demo.meshpay.payment.repository.RefundRepository;
-import com.demo.meshpay.payment.repository.TransactionRepository;
+import com.demo.syncpay.payment.model.Account;
+import com.demo.syncpay.payment.model.LedgerEntry;
+import com.demo.syncpay.payment.model.Outbox;
+import com.demo.syncpay.payment.model.Refund;
+import com.demo.syncpay.payment.model.Transaction;
+import com.demo.syncpay.payment.repository.AccountRepository;
+import com.demo.syncpay.payment.repository.LedgerEntryRepository;
+import com.demo.syncpay.payment.repository.OutboxRepository;
+import com.demo.syncpay.payment.repository.RefundRepository;
+import com.demo.syncpay.payment.repository.TransactionRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -46,8 +46,8 @@ class FinancialCorrectnessIntegrationTest {
     @Container static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:16-alpine");
     @Container static final GenericContainer<?> REDIS = new GenericContainer<>(DockerImageName.parse("redis:7-alpine")).withExposedPorts(6379);
 
-    private static final String SENDER = "alice@meshpay.local";
-    private static final String RECEIVER = "recipient@meshpay.local";
+    private static final String SENDER = "alice@syncpay.local";
+    private static final String RECEIVER = "recipient@syncpay.local";
 
     @DynamicPropertySource
     static void configure(DynamicPropertyRegistry properties) {
@@ -59,7 +59,7 @@ class FinancialCorrectnessIntegrationTest {
         properties.add("spring.data.redis.password", () -> "");
         properties.add("spring.kafka.listener.auto-startup", () -> "false");
         properties.add("eureka.client.enabled", () -> "false");
-        properties.add("meshpay.outbox.enabled", () -> "false");
+        properties.add("syncpay.outbox.enabled", () -> "false");
     }
 
     @Autowired PaymentSettlementService settlementService;

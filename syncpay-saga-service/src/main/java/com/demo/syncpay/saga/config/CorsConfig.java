@@ -1,4 +1,4 @@
-package com.demo.meshpay.saga.config;
+package com.demo.syncpay.saga.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

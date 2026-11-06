@@ -1,13 +1,13 @@
-package com.demo.meshpay.payment.controller;
+package com.demo.syncpay.payment.controller;
 
-import com.demo.meshpay.payment.model.Outbox;
-import com.demo.meshpay.payment.model.PacketAttempt;
-import com.demo.meshpay.payment.model.PaymentLifecycleEvent;
-import com.demo.meshpay.payment.model.Transaction;
-import com.demo.meshpay.payment.repository.OutboxRepository;
-import com.demo.meshpay.payment.repository.PacketAttemptRepository;
-import com.demo.meshpay.payment.repository.PaymentLifecycleEventRepository;
-import com.demo.meshpay.payment.repository.TransactionRepository;
+import com.demo.syncpay.payment.model.Outbox;
+import com.demo.syncpay.payment.model.PacketAttempt;
+import com.demo.syncpay.payment.model.PaymentLifecycleEvent;
+import com.demo.syncpay.payment.model.Transaction;
+import com.demo.syncpay.payment.repository.OutboxRepository;
+import com.demo.syncpay.payment.repository.PacketAttemptRepository;
+import com.demo.syncpay.payment.repository.PaymentLifecycleEventRepository;
+import com.demo.syncpay.payment.repository.TransactionRepository;
 import io.swagger.v3.oas.annotations.Operation;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;

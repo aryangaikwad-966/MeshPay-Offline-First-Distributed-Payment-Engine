@@ -1,8 +1,8 @@
-package com.demo.meshpay.saga.service;
+package com.demo.syncpay.saga.service;
 
-import com.demo.meshpay.saga.model.SagaState;
-import com.demo.meshpay.saga.repository.SagaStateRepository;
-import com.demo.meshpay.saga.repository.SagaTransitionRepository;
+import com.demo.syncpay.saga.model.SagaState;
+import com.demo.syncpay.saga.repository.SagaStateRepository;
+import com.demo.syncpay.saga.repository.SagaTransitionRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 

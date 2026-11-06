@@ -12,10 +12,10 @@
     </parent>
 
     <groupId>com.demo</groupId>
-    <artifactId>meshpay-saga-service</artifactId>
+    <artifactId>syncpay-saga-service</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>meshpay-saga-service</name>
-    <description>MeshPay Saga Service - Orchestrates distributed payment transactions</description>
+    <name>syncpay-saga-service</name>
+    <description>SyncPay Saga Service - Orchestrates distributed payment transactions</description>
 
     <properties>
         <java.version>17</java.version>

@@ -1,4 +1,4 @@
-package com.demo.meshpay.saga.events;
+package com.demo.syncpay.saga.events;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

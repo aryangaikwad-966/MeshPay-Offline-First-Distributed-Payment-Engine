@@ -1,6 +1,6 @@
-package com.demo.meshpay.saga.repository;
+package com.demo.syncpay.saga.repository;
 
-import com.demo.meshpay.saga.model.SagaCommandOutbox;
+import com.demo.syncpay.saga.model.SagaCommandOutbox;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;

@@ -1,4 +1,4 @@
-package com.demo.meshpay.gateway;
+package com.demo.syncpay.gateway;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;

@@ -6,8 +6,8 @@ spring:
     name: payment-service
   
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/meshpay_payment}
-    username: ${SPRING_DATASOURCE_USERNAME:meshpay}
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/syncpay_payment}
+    username: ${SPRING_DATASOURCE_USERNAME:syncpay}
     password: ${SPRING_DATASOURCE_PASSWORD:changeme}
     driver-class-name: org.postgresql.Driver
   
@@ -92,16 +92,16 @@ springdoc:
   swagger-ui:
     path: /swagger-ui.html
 
-meshpay:
+syncpay:
   packet:
-    server-private-key: ${MESHPAY_PACKET_RSA_PRIVATE_KEY:}
-    server-public-key: ${MESHPAY_PACKET_RSA_PUBLIC_KEY:}
+    server-private-key: ${SYNCPAY_PACKET_RSA_PRIVATE_KEY:}
+    server-public-key: ${SYNCPAY_PACKET_RSA_PUBLIC_KEY:}
     # senderVpa=base64(X.509 RSA public key), entries separated by semicolons.
-    trusted-signers: ${MESHPAY_PACKET_TRUSTED_SIGNERS:}
-    max-offline-age: ${MESHPAY_PACKET_MAX_OFFLINE_AGE:30d}
+    trusted-signers: ${SYNCPAY_PACKET_TRUSTED_SIGNERS:}
+    max-offline-age: ${SYNCPAY_PACKET_MAX_OFFLINE_AGE:30d}
   outbox:
-    max-retries: ${MESHPAY_OUTBOX_MAX_RETRIES:10}
-    enabled: ${MESHPAY_OUTBOX_ENABLED:true}
+    max-retries: ${SYNCPAY_OUTBOX_MAX_RETRIES:10}
+    enabled: ${SYNCPAY_OUTBOX_ENABLED:true}
 
 logging:
   pattern:

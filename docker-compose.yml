@@ -2,19 +2,19 @@ services:
   # PostgreSQL Database for Payment Service
   postgres-payment:
     image: postgres:16-alpine
-    container_name: meshpay-engine-postgres-payment
+    container_name: syncpay-engine-postgres-payment
     environment:
-      POSTGRES_DB: meshpay_payment
-      POSTGRES_USER: ${DB_USER:-meshpay}
+      POSTGRES_DB: syncpay_payment
+      POSTGRES_USER: ${DB_USER:-syncpay}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
     ports:
       - "127.0.0.1:5433:5432"
     volumes:
       - postgres_payment_data:/var/lib/postgresql/data
     networks:
-      - meshpay-network
+      - syncpay-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-meshpay} -d meshpay_payment"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-syncpay} -d syncpay_payment"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -22,19 +22,19 @@ services:
   # PostgreSQL Database for Saga Service
   postgres-saga:
     image: postgres:16-alpine
-    container_name: meshpay-engine-postgres-saga
+    container_name: syncpay-engine-postgres-saga
     environment:
-      POSTGRES_DB: meshpay_saga
-      POSTGRES_USER: ${DB_USER:-meshpay}
+      POSTGRES_DB: syncpay_saga
+      POSTGRES_USER: ${DB_USER:-syncpay}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
     ports:
       - "127.0.0.1:5434:5432"
     volumes:
       - postgres_saga_data:/var/lib/postgresql/data
     networks:
-      - meshpay-network
+      - syncpay-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-meshpay} -d meshpay_saga"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-syncpay} -d syncpay_saga"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -42,14 +42,14 @@ services:
   # Redis Cache (for distributed idempotency)
   redis:
     image: redis:7-alpine # redis image
-    container_name: meshpay-engine-redis
+    container_name: syncpay-engine-redis
     command: redis-server --requirepass ${REDIS_PASSWORD:-changeme} --maxmemory 512mb --maxmemory-policy allkeys-lru
     ports:
       - "127.0.0.1:${REDIS_PORT:-6379}:6379"
     volumes:
       - redis_data:/data
     networks:
-      - meshpay-network
+      - syncpay-network
     healthcheck:
       test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-changeme}", "ping"]
       interval: 10s
@@ -59,7 +59,7 @@ services:
   # Zookeeper (required for Kafka)
   zookeeper:
     image: confluentinc/cp-zookeeper:7.5.0
-    container_name: meshpay-engine-zookeeper
+    container_name: syncpay-engine-zookeeper
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
@@ -69,12 +69,12 @@ services:
       - zookeeper_data:/var/lib/zookeeper/data
       - zookeeper_logs:/var/lib/zookeeper/log
     networks:
-      - meshpay-network
+      - syncpay-network
 
   # Kafka (event-driven architecture)
   kafka:
     image: confluentinc/cp-kafka:7.5.0
-    container_name: meshpay-engine-kafka
+    container_name: syncpay-engine-kafka
     depends_on:
       - zookeeper
     ports:
@@ -92,7 +92,7 @@ services:
     volumes:
       - kafka_data:/var/lib/kafka/data
     networks:
-      - meshpay-network
+      - syncpay-network
     healthcheck:
       test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
       interval: 10s
@@ -102,13 +102,13 @@ services:
   # Eureka Server
   eureka-server:
     build:
-      context: ./meshpay-eureka-server
+      context: ./syncpay-eureka-server
       dockerfile: Dockerfile
-    container_name: meshpay-engine-eureka-server
+    container_name: syncpay-engine-eureka-server
     ports:
       - "127.0.0.1:8761:8761"
     networks:
-      - meshpay-network
+      - syncpay-network
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8761/actuator/health"]
       interval: 30s
@@ -118,22 +118,22 @@ services:
   # API Gateway
   api-gateway:
     build:
-      context: ./meshpay-api-gateway
+      context: ./syncpay-api-gateway
       dockerfile: Dockerfile
-    container_name: meshpay-engine-api-gateway
+    container_name: syncpay-engine-api-gateway
     ports:
       - "127.0.0.1:8080:8080"
     environment:
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
       EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://eureka-server:8761/eureka/
-      MESHPAY_JWKS_URI: ${MESHPAY_JWKS_URI:-}
-      MESHPAY_JWT_ISSUER: ${MESHPAY_JWT_ISSUER:-}
-      MESHPAY_JWT_AUDIENCE: ${MESHPAY_JWT_AUDIENCE:-}
+      SYNCPAY_JWKS_URI: ${SYNCPAY_JWKS_URI:-}
+      SYNCPAY_JWT_ISSUER: ${SYNCPAY_JWT_ISSUER:-}
+      SYNCPAY_JWT_AUDIENCE: ${SYNCPAY_JWT_AUDIENCE:-}
     depends_on:
       eureka-server:
         condition: service_healthy
     networks:
-      - meshpay-network
+      - syncpay-network
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/actuator/health"]
       interval: 30s
@@ -143,15 +143,15 @@ services:
   # Payment Service
   payment-service:
     build:
-      context: ./meshpay-payment-service
+      context: ./syncpay-payment-service
       dockerfile: Dockerfile
-    container_name: meshpay-engine-payment-service
+    container_name: syncpay-engine-payment-service
     ports:
       - "127.0.0.1:8081:8081"
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-payment:5432/meshpay_payment
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-payment:5432/syncpay_payment
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
-      SPRING_DATASOURCE_USERNAME: ${DB_USER:-meshpay}
+      SPRING_DATASOURCE_USERNAME: ${DB_USER:-syncpay}
       SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-changeme}
       SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.postgresql.Driver
       SPRING_JPA_PROPERTIES_HIBERNATE_DIALECT: org.hibernate.dialect.PostgreSQLDialect
@@ -160,15 +160,15 @@ services:
       SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD:-changeme}
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://eureka-server:8761/eureka/
-      MESHPAY_PACKET_RSA_PRIVATE_KEY: ${MESHPAY_PACKET_RSA_PRIVATE_KEY:-}
-      MESHPAY_PACKET_RSA_PUBLIC_KEY: ${MESHPAY_PACKET_RSA_PUBLIC_KEY:-}
-      MESHPAY_PACKET_TRUSTED_SIGNERS: ${MESHPAY_PACKET_TRUSTED_SIGNERS:-}
-      MESHPAY_PACKET_MAX_OFFLINE_AGE: ${MESHPAY_PACKET_MAX_OFFLINE_AGE:-30d}
-      MESHPAY_OUTBOX_MAX_RETRIES: ${MESHPAY_OUTBOX_MAX_RETRIES:-10}
-      MESHPAY_OUTBOX_ENABLED: ${MESHPAY_OUTBOX_ENABLED:-true}
-      MESHPAY_JWKS_URI: ${MESHPAY_JWKS_URI:-}
-      MESHPAY_JWT_ISSUER: ${MESHPAY_JWT_ISSUER:-}
-      MESHPAY_JWT_AUDIENCE: ${MESHPAY_JWT_AUDIENCE:-}
+      SYNCPAY_PACKET_RSA_PRIVATE_KEY: ${SYNCPAY_PACKET_RSA_PRIVATE_KEY:-}
+      SYNCPAY_PACKET_RSA_PUBLIC_KEY: ${SYNCPAY_PACKET_RSA_PUBLIC_KEY:-}
+      SYNCPAY_PACKET_TRUSTED_SIGNERS: ${SYNCPAY_PACKET_TRUSTED_SIGNERS:-}
+      SYNCPAY_PACKET_MAX_OFFLINE_AGE: ${SYNCPAY_PACKET_MAX_OFFLINE_AGE:-30d}
+      SYNCPAY_OUTBOX_MAX_RETRIES: ${SYNCPAY_OUTBOX_MAX_RETRIES:-10}
+      SYNCPAY_OUTBOX_ENABLED: ${SYNCPAY_OUTBOX_ENABLED:-true}
+      SYNCPAY_JWKS_URI: ${SYNCPAY_JWKS_URI:-}
+      SYNCPAY_JWT_ISSUER: ${SYNCPAY_JWT_ISSUER:-}
+      SYNCPAY_JWT_AUDIENCE: ${SYNCPAY_JWT_AUDIENCE:-}
     depends_on:
       postgres-payment:
         condition: service_healthy
@@ -179,7 +179,7 @@ services:
       eureka-server:
         condition: service_healthy
     networks:
-      - meshpay-network
+      - syncpay-network
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8081/actuator/health"]
       interval: 30s
@@ -189,15 +189,15 @@ services:
   # Saga Service
   saga-service:
     build:
-      context: ./meshpay-saga-service
+      context: ./syncpay-saga-service
       dockerfile: Dockerfile
-    container_name: meshpay-engine-saga-service
+    container_name: syncpay-engine-saga-service
     ports:
       - "127.0.0.1:8082:8082"
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-saga:5432/meshpay_saga
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-saga:5432/syncpay_saga
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
-      SPRING_DATASOURCE_USERNAME: ${DB_USER:-meshpay}
+      SPRING_DATASOURCE_USERNAME: ${DB_USER:-syncpay}
       SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-changeme}
       SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.postgresql.Driver
       SPRING_JPA_PROPERTIES_HIBERNATE_DIALECT: org.hibernate.dialect.PostgreSQLDialect
@@ -206,9 +206,9 @@ services:
       SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD:-changeme}
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://eureka-server:8761/eureka/
-      MESHPAY_JWKS_URI: ${MESHPAY_JWKS_URI:-}
-      MESHPAY_JWT_ISSUER: ${MESHPAY_JWT_ISSUER:-}
-      MESHPAY_JWT_AUDIENCE: ${MESHPAY_JWT_AUDIENCE:-}
+      SYNCPAY_JWKS_URI: ${SYNCPAY_JWKS_URI:-}
+      SYNCPAY_JWT_ISSUER: ${SYNCPAY_JWT_ISSUER:-}
+      SYNCPAY_JWT_AUDIENCE: ${SYNCPAY_JWT_AUDIENCE:-}
     depends_on:
       postgres-saga:
         condition: service_healthy
@@ -219,7 +219,7 @@ services:
       eureka-server:
         condition: service_healthy
     networks:
-      - meshpay-network
+      - syncpay-network
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8082/actuator/health"]
       interval: 30s
@@ -228,7 +228,7 @@ services:
 
   prometheus:
     image: prom/prometheus:v2.54.1
-    container_name: meshpay-engine-prometheus
+    container_name: syncpay-engine-prometheus
     command:
       - --config.file=/etc/prometheus/prometheus.yml
       - --storage.tsdb.path=/prometheus
@@ -243,11 +243,11 @@ services:
       - saga-service
       - api-gateway
     networks:
-      - meshpay-network
+      - syncpay-network
 
   grafana:
     image: grafana/grafana:11.2.2
-    container_name: meshpay-engine-grafana
+    container_name: syncpay-engine-grafana
     environment:
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-dev-only-change-me}
       GF_USERS_ALLOW_SIGN_UP: "false"
@@ -261,26 +261,26 @@ services:
     depends_on:
       - prometheus
     networks:
-      - meshpay-network
+      - syncpay-network
 
   dashboard:
     build:
-      context: ./meshpay-dashboard
+      context: ./syncpay-dashboard
       dockerfile: Dockerfile
-    container_name: meshpay-engine-dashboard
+    container_name: syncpay-engine-dashboard
     ports:
       - "127.0.0.1:3001:80"
     depends_on:
       - payment-service
       - saga-service
     networks:
-      - meshpay-network
+      - syncpay-network
 
   # SonarQube Community Edition for static analysis. Opt-in profile so it does
   # not start with the default stack: docker compose --profile sonar up -d
   sonarqube:
     image: sonarqube:community
-    container_name: meshpay-engine-sonarqube
+    container_name: syncpay-engine-sonarqube
     environment:
       SONAR_ES_BOOTSTRAP_CHECKS_DISABLE: "true"
     ports:
@@ -290,12 +290,12 @@ services:
       - sonarqube_extensions:/opt/sonarqube/extensions
       - sonarqube_logs:/opt/sonarqube/logs
     networks:
-      - meshpay-network
+      - syncpay-network
     profiles:
       - sonar
 
 networks:
-  meshpay-network:
+  syncpay-network:
     driver: bridge
 
 volumes:

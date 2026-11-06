@@ -1,10 +1,10 @@
-package com.demo.meshpay.payment.service;
+package com.demo.syncpay.payment.service;
 
-import com.demo.meshpay.payment.model.Account;
-import com.demo.meshpay.payment.model.LedgerEntry;
-import com.demo.meshpay.payment.model.Transaction;
-import com.demo.meshpay.payment.repository.AccountRepository;
-import com.demo.meshpay.payment.repository.LedgerEntryRepository;
+import com.demo.syncpay.payment.model.Account;
+import com.demo.syncpay.payment.model.LedgerEntry;
+import com.demo.syncpay.payment.model.Transaction;
+import com.demo.syncpay.payment.repository.AccountRepository;
+import com.demo.syncpay.payment.repository.LedgerEntryRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 

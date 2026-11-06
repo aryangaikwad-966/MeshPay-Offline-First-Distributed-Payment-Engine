@@ -1,12 +1,12 @@
-package com.demo.meshpay.saga.consumer;
+package com.demo.syncpay.saga.consumer;
 
-import com.demo.meshpay.saga.events.PaymentFailedEvent;
-import com.demo.meshpay.saga.events.PaymentSettlementRequestedEvent;
-import com.demo.meshpay.saga.events.PaymentSettledEvent;
-import com.demo.meshpay.saga.events.PaymentValidatedEvent;
-import com.demo.meshpay.saga.model.ProcessedEvent;
-import com.demo.meshpay.saga.repository.ProcessedEventRepository;
-import com.demo.meshpay.saga.service.PaymentSagaOrchestrator;
+import com.demo.syncpay.saga.events.PaymentFailedEvent;
+import com.demo.syncpay.saga.events.PaymentSettlementRequestedEvent;
+import com.demo.syncpay.saga.events.PaymentSettledEvent;
+import com.demo.syncpay.saga.events.PaymentValidatedEvent;
+import com.demo.syncpay.saga.model.ProcessedEvent;
+import com.demo.syncpay.saga.repository.ProcessedEventRepository;
+import com.demo.syncpay.saga.service.PaymentSagaOrchestrator;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;

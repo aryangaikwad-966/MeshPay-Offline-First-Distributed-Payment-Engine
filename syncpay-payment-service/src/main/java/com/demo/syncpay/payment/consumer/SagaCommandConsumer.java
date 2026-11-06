@@ -1,8 +1,8 @@
-package com.demo.meshpay.payment.consumer;
+package com.demo.syncpay.payment.consumer;
 
-import com.demo.meshpay.payment.model.ProcessedCommand;
-import com.demo.meshpay.payment.repository.ProcessedCommandRepository;
-import com.demo.meshpay.payment.service.PaymentSettlementService;
+import com.demo.syncpay.payment.model.ProcessedCommand;
+import com.demo.syncpay.payment.repository.ProcessedCommandRepository;
+import com.demo.syncpay.payment.service.PaymentSettlementService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;

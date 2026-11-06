@@ -12,10 +12,10 @@
     </parent>
 
     <groupId>com.demo</groupId>
-    <artifactId>meshpay-eureka-server</artifactId>
+    <artifactId>syncpay-eureka-server</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>meshpay-eureka-server</name>
-    <description>MeshPay Eureka Server - Service Discovery</description>
+    <name>syncpay-eureka-server</name>
+    <description>SyncPay Eureka Server - Service Discovery</description>
 
     <properties>
         <java.version>17</java.version>

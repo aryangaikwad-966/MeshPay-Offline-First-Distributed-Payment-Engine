@@ -1,10 +1,10 @@
-package com.demo.meshpay.saga.service;
+package com.demo.syncpay.saga.service;
 
-import com.demo.meshpay.saga.events.CompleteSettlementCommand;
-import com.demo.meshpay.saga.events.RequestSettlementCommand;
-import com.demo.meshpay.saga.events.ValidatePaymentCommand;
-import com.demo.meshpay.saga.model.SagaCommandOutbox;
-import com.demo.meshpay.saga.repository.SagaCommandOutboxRepository;
+import com.demo.syncpay.saga.events.CompleteSettlementCommand;
+import com.demo.syncpay.saga.events.RequestSettlementCommand;
+import com.demo.syncpay.saga.events.ValidatePaymentCommand;
+import com.demo.syncpay.saga.model.SagaCommandOutbox;
+import com.demo.syncpay.saga.repository.SagaCommandOutboxRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;

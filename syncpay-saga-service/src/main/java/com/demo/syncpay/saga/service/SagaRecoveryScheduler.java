@@ -1,9 +1,9 @@
-package com.demo.meshpay.saga.service;
+package com.demo.syncpay.saga.service;
 
-import com.demo.meshpay.saga.model.SagaCommandOutbox;
-import com.demo.meshpay.saga.model.SagaState;
-import com.demo.meshpay.saga.repository.SagaCommandOutboxRepository;
-import com.demo.meshpay.saga.repository.SagaStateRepository;
+import com.demo.syncpay.saga.model.SagaCommandOutbox;
+import com.demo.syncpay.saga.model.SagaState;
+import com.demo.syncpay.saga.repository.SagaCommandOutboxRepository;
+import com.demo.syncpay.saga.repository.SagaStateRepository;
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -20,7 +20,7 @@ import java.util.Set;
  * Recovery sweeper for stuck Saga workflows.
  *
  * A saga is "stuck" when it sits in a non-terminal state longer than
- * meshpay.saga.recovery.timeout without updates. Recovery is deliberately
+ * syncpay.saga.recovery.timeout without updates. Recovery is deliberately
  * conservative:
  *  - If the saga has a DEAD command-outbox row, the command is requeued once
  *    per saga (bounded by recovery_attempts). The commandId is unchanged, so
@@ -41,13 +41,13 @@ public class SagaRecoveryScheduler {
     private final SagaStateManager stateManager;
     private final MeterRegistry meterRegistry;
 
-    @Value("${meshpay.saga.recovery.timeout:PT10M}")
+    @Value("${syncpay.saga.recovery.timeout:PT10M}")
     private java.time.Duration timeout;
 
-    @Value("${meshpay.saga.recovery.max-attempts:3}")
+    @Value("${syncpay.saga.recovery.max-attempts:3}")
     private int maxAttempts;
 
-    @Scheduled(fixedDelayString = "${meshpay.saga.recovery.interval-ms:60000}")
+    @Scheduled(fixedDelayString = "${syncpay.saga.recovery.interval-ms:60000}")
     @Transactional
     public void recoverStuckSagas() {
         Instant cutoff = Instant.now().minus(timeout);
@@ -60,7 +60,7 @@ public class SagaRecoveryScheduler {
                 recoverOne(saga);
             } catch (Exception e) {
                 log.error("Saga recovery failed for sagaId={}", saga.getSagaId(), e);
-                meterRegistry.counter("meshpay.saga.recovery.failure").increment();
+                meterRegistry.counter("syncpay.saga.recovery.failure").increment();
             }
         }
     }
@@ -77,7 +77,7 @@ public class SagaRecoveryScheduler {
             saga.setRecoveryAttempts(attempts + 1);
             saga.setLastRecoveryAt(Instant.now());
             sagaStates.save(saga);
-            meterRegistry.counter("meshpay.saga.recovery.requeued").increment();
+            meterRegistry.counter("syncpay.saga.recovery.requeued").increment();
             log.warn("Requeued {} DEAD command(s) for stuck saga: sagaId={}, state={}, attempt={}",
                     dead.size(), saga.getSagaId(), saga.getState(), attempts + 1);
             return;
@@ -87,7 +87,7 @@ public class SagaRecoveryScheduler {
         stateManager.recordFailureReason(saga.getSagaId(),
                 "STUCK_TIMEOUT: no update for " + timeout + " in state " + saga.getState());
         stateManager.updateSagaState(saga.getSagaId(), "MANUAL_REVIEW");
-        meterRegistry.counter("meshpay.saga.recovery.manual_review").increment();
+        meterRegistry.counter("syncpay.saga.recovery.manual_review").increment();
         log.warn("Moved stuck saga to MANUAL_REVIEW: sagaId={}, state={}", saga.getSagaId(), saga.getState());
     }
 }

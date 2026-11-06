@@ -1,6 +1,6 @@
-package com.demo.meshpay.payment.repository;
+package com.demo.syncpay.payment.repository;
 
-import com.demo.meshpay.payment.model.Account;
+import com.demo.syncpay.payment.model.Account;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;

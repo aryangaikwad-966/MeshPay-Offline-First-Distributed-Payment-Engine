@@ -1,4 +1,4 @@
-package com.demo.meshpay.gateway;
+package com.demo.syncpay.gateway;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -6,7 +6,7 @@ import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
 
 /**
  * API Gateway Application
- * Single entry point for all MeshPay microservices
+ * Single entry point for all SyncPay microservices
  */
 @SpringBootApplication
 @EnableDiscoveryClient

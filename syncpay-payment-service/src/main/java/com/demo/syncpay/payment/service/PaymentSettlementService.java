@@ -1,14 +1,14 @@
-package com.demo.meshpay.payment.service;
+package com.demo.syncpay.payment.service;
 
-import com.demo.meshpay.payment.events.EventEnvelope;
-import com.demo.meshpay.payment.events.PaymentFailedEvent;
-import com.demo.meshpay.payment.events.PaymentSettledEvent;
-import com.demo.meshpay.payment.events.PaymentValidatedEvent;
-import com.demo.meshpay.payment.metrics.PaymentMetrics;
-import com.demo.meshpay.payment.model.Transaction;
-import com.demo.meshpay.payment.repository.TransactionRepository;
-import com.demo.meshpay.payment.model.PaymentLifecycleEvent;
-import com.demo.meshpay.payment.repository.PaymentLifecycleEventRepository;
+import com.demo.syncpay.payment.events.EventEnvelope;
+import com.demo.syncpay.payment.events.PaymentFailedEvent;
+import com.demo.syncpay.payment.events.PaymentSettledEvent;
+import com.demo.syncpay.payment.events.PaymentValidatedEvent;
+import com.demo.syncpay.payment.metrics.PaymentMetrics;
+import com.demo.syncpay.payment.model.Transaction;
+import com.demo.syncpay.payment.repository.TransactionRepository;
+import com.demo.syncpay.payment.model.PaymentLifecycleEvent;
+import com.demo.syncpay.payment.repository.PaymentLifecycleEventRepository;
 import io.micrometer.core.instrument.Timer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -140,8 +140,8 @@ public class PaymentSettlementService {
             paymentMetrics.incrementSettlementRequested();
             
             // Create settlement request event
-            com.demo.meshpay.payment.events.PaymentSettlementRequestedEvent settlementRequestedEvent = 
-                com.demo.meshpay.payment.events.PaymentSettlementRequestedEvent.builder()
+            com.demo.syncpay.payment.events.PaymentSettlementRequestedEvent settlementRequestedEvent = 
+                com.demo.syncpay.payment.events.PaymentSettlementRequestedEvent.builder()
                         .packetId(packetId)
                         .packetHash(packetHash)
                         .senderVpa(senderVpa)

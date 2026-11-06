@@ -1,8 +1,8 @@
-package com.demo.meshpay.payment.controller;
+package com.demo.syncpay.payment.controller;
 
-import com.demo.meshpay.payment.model.Outbox;
-import com.demo.meshpay.payment.repository.OutboxRepository;
-import com.demo.meshpay.payment.service.OutboxRecoveryService;
+import com.demo.syncpay.payment.model.Outbox;
+import com.demo.syncpay.payment.repository.OutboxRepository;
+import com.demo.syncpay.payment.service.OutboxRecoveryService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -20,7 +20,7 @@ import java.util.Map;
 
 /**
  * Dead-letter queue inspection and controlled replay for the transactional
- * outbox. Requires the meshpay:ops scope outside the dev profile.
+ * outbox. Requires the syncpay:ops scope outside the dev profile.
  * Payloads are never exposed — only metadata needed for investigation.
  */
 @RestController

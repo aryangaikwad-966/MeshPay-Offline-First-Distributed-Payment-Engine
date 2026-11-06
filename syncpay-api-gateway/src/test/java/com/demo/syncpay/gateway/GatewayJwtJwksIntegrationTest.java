@@ -1,4 +1,4 @@
-package com.demo.meshpay.gateway;
+package com.demo.syncpay.gateway;
 
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSHeader;
@@ -32,12 +32,12 @@ import java.util.Date;
 @Import({GatewaySecurityConfig.class, GatewayJwtJwksIntegrationTest.ProbeController.class})
 @ActiveProfiles("prod")
 @TestPropertySource(properties = {
-        "MESHPAY_JWT_ISSUER=https://meshpay-gateway.test/",
-        "MESHPAY_JWT_AUDIENCE=meshpay"
+        "SYNCPAY_JWT_ISSUER=https://syncpay-gateway.test/",
+        "SYNCPAY_JWT_AUDIENCE=syncpay"
 })
 class GatewayJwtJwksIntegrationTest {
-    private static final String ISSUER = "https://meshpay-gateway.test/";
-    private static final String AUDIENCE = "meshpay";
+    private static final String ISSUER = "https://syncpay-gateway.test/";
+    private static final String AUDIENCE = "syncpay";
     private static RSAKey trustedKey;
     private static RSAKey untrustedKey;
     private static HttpServer jwksServer;
@@ -48,7 +48,7 @@ class GatewayJwtJwksIntegrationTest {
     @DynamicPropertySource
     static void jwksProperties(DynamicPropertyRegistry registry) {
         ensureTestIssuer();
-        registry.add("MESHPAY_JWKS_URI", () -> "http://127.0.0.1:" + jwksServer.getAddress().getPort() + "/jwks");
+        registry.add("SYNCPAY_JWKS_URI", () -> "http://127.0.0.1:" + jwksServer.getAddress().getPort() + "/jwks");
     }
 
     @BeforeAll
@@ -60,25 +60,25 @@ class GatewayJwtJwksIntegrationTest {
     @Test
     void validSignedJwtAndGatewayScopeAreAccepted() {
         client.get().uri("/api/payment/ops/probe").header("Authorization", bearer(token(trustedKey, ISSUER,
-                        AUDIENCE, Instant.now().plusSeconds(120), "meshpay:ops")))
+                        AUDIENCE, Instant.now().plusSeconds(120), "syncpay:ops")))
                 .exchange().expectStatus().isOk();
     }
 
     @Test
     void missingScopeIsForbiddenAndAnonymousRequestIsUnauthorized() {
         client.get().uri("/api/payment/ops/probe").header("Authorization", bearer(token(trustedKey, ISSUER,
-                        AUDIENCE, Instant.now().plusSeconds(120), "meshpay:metrics:read")))
+                        AUDIENCE, Instant.now().plusSeconds(120), "syncpay:metrics:read")))
                 .exchange().expectStatus().isForbidden();
         client.get().uri("/api/payment/ops/probe").exchange().expectStatus().isUnauthorized();
     }
 
     @Test
     void expiredWrongIssuerWrongAudienceMalformedAndWronglySignedTokensAreRejected() {
-        assertUnauthorized(token(trustedKey, ISSUER, AUDIENCE, Instant.now().minusSeconds(30), "meshpay:ops"));
+        assertUnauthorized(token(trustedKey, ISSUER, AUDIENCE, Instant.now().minusSeconds(30), "syncpay:ops"));
         assertUnauthorized(token(trustedKey, "https://wrong-issuer.test/", AUDIENCE,
-                Instant.now().plusSeconds(120), "meshpay:ops"));
-        assertUnauthorized(token(trustedKey, ISSUER, "wrong-audience", Instant.now().plusSeconds(120), "meshpay:ops"));
-        assertUnauthorized(token(untrustedKey, ISSUER, AUDIENCE, Instant.now().plusSeconds(120), "meshpay:ops"));
+                Instant.now().plusSeconds(120), "syncpay:ops"));
+        assertUnauthorized(token(trustedKey, ISSUER, "wrong-audience", Instant.now().plusSeconds(120), "syncpay:ops"));
+        assertUnauthorized(token(untrustedKey, ISSUER, AUDIENCE, Instant.now().plusSeconds(120), "syncpay:ops"));
         client.get().uri("/api/payment/ops/probe").header("Authorization", "Bearer malformed.token.value")
                 .exchange().expectStatus().isUnauthorized();
     }
@@ -94,7 +94,7 @@ class GatewayJwtJwksIntegrationTest {
         try {
             Instant now = Instant.now();
             JWTClaimsSet claims = new JWTClaimsSet.Builder()
-                    .issuer(issuer).subject("meshpay-test-operator").audience(audience)
+                    .issuer(issuer).subject("syncpay-test-operator").audience(audience)
                     .issueTime(Date.from(now.minusSeconds(1))).notBeforeTime(Date.from(now.minusSeconds(1)))
                     .expirationTime(Date.from(expiresAt)).claim("scope", scope).build();
             SignedJWT signed = new SignedJWT(new JWSHeader.Builder(JWSAlgorithm.RS256).keyID(key.getKeyID()).build(), claims);
@@ -108,7 +108,7 @@ class GatewayJwtJwksIntegrationTest {
     private static synchronized void ensureTestIssuer() {
         if (jwksServer != null) return;
         try {
-            trustedKey = new RSAKeyGenerator(2048).keyID("meshpay-gateway-integration-key").generate();
+            trustedKey = new RSAKeyGenerator(2048).keyID("syncpay-gateway-integration-key").generate();
             untrustedKey = new RSAKeyGenerator(2048).keyID("untrusted-gateway-integration-key").generate();
             byte[] body = new JWKSet(trustedKey.toPublicJWK()).toString().getBytes(StandardCharsets.UTF_8);
             jwksServer = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);

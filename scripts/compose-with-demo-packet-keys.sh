@@ -14,21 +14,21 @@ for key_file in \
   fi
 done
 
-export MESHPAY_PACKET_RSA_PRIVATE_KEY="$(tr -d '\n' < "${key_dir}/recipient-private.pkcs8.b64")"
-export MESHPAY_PACKET_RSA_PUBLIC_KEY="$(tr -d '\n' < "${key_dir}/recipient-public.spki.b64")"
-demo_signer="alice@meshpay.local=$(tr -d '\n' < "${key_dir}/signer-public.spki.b64")"
-existing_signers="${MESHPAY_PACKET_TRUSTED_SIGNERS:-}"
+export SYNCPAY_PACKET_RSA_PRIVATE_KEY="$(tr -d '\n' < "${key_dir}/recipient-private.pkcs8.b64")"
+export SYNCPAY_PACKET_RSA_PUBLIC_KEY="$(tr -d '\n' < "${key_dir}/recipient-public.spki.b64")"
+demo_signer="alice@syncpay.local=$(tr -d '\n' < "${key_dir}/signer-public.spki.b64")"
+existing_signers="${SYNCPAY_PACKET_TRUSTED_SIGNERS:-}"
 if [[ -z "${existing_signers}" && -f "${repo_root}/.env" ]]; then
-  existing_signers="$(sed -n 's/^MESHPAY_PACKET_TRUSTED_SIGNERS=//p' "${repo_root}/.env" | tail -n 1)"
+  existing_signers="$(sed -n 's/^SYNCPAY_PACKET_TRUSTED_SIGNERS=//p' "${repo_root}/.env" | tail -n 1)"
   existing_signers="${existing_signers#\"}"
   existing_signers="${existing_signers%\"}"
 fi
-if [[ ";${existing_signers};" == *";alice@meshpay.local="* ]]; then
-  export MESHPAY_PACKET_TRUSTED_SIGNERS="${existing_signers}"
+if [[ ";${existing_signers};" == *";alice@syncpay.local="* ]]; then
+  export SYNCPAY_PACKET_TRUSTED_SIGNERS="${existing_signers}"
 elif [[ -n "${existing_signers}" ]]; then
-  export MESHPAY_PACKET_TRUSTED_SIGNERS="${existing_signers};${demo_signer}"
+  export SYNCPAY_PACKET_TRUSTED_SIGNERS="${existing_signers};${demo_signer}"
 else
-  export MESHPAY_PACKET_TRUSTED_SIGNERS="${demo_signer}"
+  export SYNCPAY_PACKET_TRUSTED_SIGNERS="${demo_signer}"
 fi
 
 cd "${repo_root}"

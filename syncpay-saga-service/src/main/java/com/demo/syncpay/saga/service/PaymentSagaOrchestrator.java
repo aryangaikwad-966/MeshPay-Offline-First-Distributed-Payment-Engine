@@ -1,10 +1,10 @@
-package com.demo.meshpay.saga.service;
+package com.demo.syncpay.saga.service;
 
-import com.demo.meshpay.saga.events.CompleteSettlementCommand;
-import com.demo.meshpay.saga.events.RequestSettlementCommand;
-import com.demo.meshpay.saga.events.ValidatePaymentCommand;
-import com.demo.meshpay.saga.metrics.SagaMetrics;
-import com.demo.meshpay.saga.model.SagaState;
+import com.demo.syncpay.saga.events.CompleteSettlementCommand;
+import com.demo.syncpay.saga.events.RequestSettlementCommand;
+import com.demo.syncpay.saga.events.ValidatePaymentCommand;
+import com.demo.syncpay.saga.metrics.SagaMetrics;
+import com.demo.syncpay.saga.model.SagaState;
 import io.micrometer.core.instrument.Timer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

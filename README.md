@@ -1,6 +1,6 @@
 <div align="center">
 
-# MeshPay
+# SyncPay
 
 ### An offline-first, event-driven payment engine
 
@@ -16,7 +16,7 @@ Cryptographically secured packet sync · durable idempotency · Kafka sagas · s
 
 Safely accepts payment packets created on disconnected clients, synchronizes them **exactly once** on reconnect, and drives them through a resilient settlement workflow.
 
-> MeshPay is a local engineering demonstration — settlement and balances are **simulated**. No real money moves.
+> SyncPay is a local engineering demonstration — settlement and balances are **simulated**. No real money moves.
 
 </div>
 
@@ -24,7 +24,7 @@ Safely accepts payment packets created on disconnected clients, synchronizes the
 
 ## Overview
 
-Payment clients are unreliable: they go offline, retry after timeouts, and resubmit the same packet concurrently. Naive ingestion double-posts or silently loses payments. MeshPay solves this with layered defenses:
+Payment clients are unreliable: they go offline, retry after timeouts, and resubmit the same packet concurrently. Naive ingestion double-posts or silently loses payments. SyncPay solves this with layered defenses:
 
 | Layer | Mechanism |
 | --- | --- |
@@ -36,7 +36,7 @@ Payment clients are unreliable: they go offline, retry after timeouts, and resub
 
 ## Architecture
 
-MeshPay is four Spring Boot services plus their data stores, all wired together by Docker Compose. Requests enter through one gateway; services talk to each other **only through Kafka** — never by direct HTTP calls.
+SyncPay is four Spring Boot services plus their data stores, all wired together by Docker Compose. Requests enter through one gateway; services talk to each other **only through Kafka** — never by direct HTTP calls.
 
 ```mermaid
 flowchart LR
@@ -157,15 +157,15 @@ openssl pkcs8 -topk8 -nocrypt -in .local-keys/signer-private.pem -outform DER | 
 openssl pkey -in .local-keys/signer-public.pem -pubin -outform DER | base64 | tr -d '\n' > .local-keys/signer-public.spki.b64
 ```
 
-Then either put the values into `.env` (`MESHPAY_PACKET_RSA_PRIVATE_KEY`, `MESHPAY_PACKET_RSA_PUBLIC_KEY`, `MESHPAY_PACKET_TRUSTED_SIGNERS=alice@meshpay.local=<signer-public.spki.b64>`), or run `scripts/compose-with-demo-packet-keys.sh` — it exports the keys and adds the `alice@meshpay.local` signer without editing `.env`.
+Then either put the values into `.env` (`SYNCPAY_PACKET_RSA_PRIVATE_KEY`, `SYNCPAY_PACKET_RSA_PUBLIC_KEY`, `SYNCPAY_PACKET_TRUSTED_SIGNERS=alice@syncpay.local=<signer-public.spki.b64>`), or run `scripts/compose-with-demo-packet-keys.sh` — it exports the keys and adds the `alice@syncpay.local` signer without editing `.env`.
 
-In the dashboard's **Offline Client** tab: load the recipient key while online, import `signer-private.pkcs8.b64` (held in memory only, never persisted), and create packets. A CLI generator is also available: `node scripts/create-payment-packet.js` (writes `/tmp/meshpay-packet-<uuid>.json`).
+In the dashboard's **Offline Client** tab: load the recipient key while online, import `signer-private.pkcs8.b64` (held in memory only, never persisted), and create packets. A CLI generator is also available: `node scripts/create-payment-packet.js` (writes `/tmp/syncpay-packet-<uuid>.json`).
 
 These are demo credentials — no KMS, HSM, rotation, or signer onboarding exists.
 
 ## Environment variables
 
-Compose reads the root `.env` (git-ignored). `.env.example` selects `dev`, which permits unauthenticated access — **local use only**. Compose defaults to `prod` when `SPRING_PROFILES_ACTIVE` is unset, which **fails closed**: Payment, Saga, and Gateway refuse to start without `MESHPAY_JWKS_URI`, `MESHPAY_JWT_ISSUER`, and `MESHPAY_JWT_AUDIENCE`.
+Compose reads the root `.env` (git-ignored). `.env.example` selects `dev`, which permits unauthenticated access — **local use only**. Compose defaults to `prod` when `SPRING_PROFILES_ACTIVE` is unset, which **fails closed**: Payment, Saga, and Gateway refuse to start without `SYNCPAY_JWKS_URI`, `SYNCPAY_JWT_ISSUER`, and `SYNCPAY_JWT_AUDIENCE`.
 
 | Variable | Purpose |
 | --- | --- |
@@ -173,20 +173,20 @@ Compose reads the root `.env` (git-ignored). `.env.example` selects `dev`, which
 | `DB_USER` / `DB_PASSWORD` | PostgreSQL credentials (local defaults are placeholders) |
 | `REDIS_PASSWORD` / `REDIS_PORT` | Redis auth and host port |
 | `GRAFANA_ADMIN_PASSWORD` | Grafana admin password |
-| `MESHPAY_PACKET_RSA_PRIVATE_KEY` / `MESHPAY_PACKET_RSA_PUBLIC_KEY` | Base64 DER PKCS#8 / X.509 recipient key pair — both or neither |
-| `MESHPAY_PACKET_TRUSTED_SIGNERS` | `senderVpa=base64(DER SPKI)` entries, `;`-separated |
-| `MESHPAY_PACKET_MAX_OFFLINE_AGE` | Accepted offline window (default `30d`) |
-| `MESHPAY_OUTBOX_MAX_RETRIES` / `MESHPAY_OUTBOX_ENABLED` | Payment outbox retry bound / toggle |
+| `SYNCPAY_PACKET_RSA_PRIVATE_KEY` / `SYNCPAY_PACKET_RSA_PUBLIC_KEY` | Base64 DER PKCS#8 / X.509 recipient key pair — both or neither |
+| `SYNCPAY_PACKET_TRUSTED_SIGNERS` | `senderVpa=base64(DER SPKI)` entries, `;`-separated |
+| `SYNCPAY_PACKET_MAX_OFFLINE_AGE` | Accepted offline window (default `30d`) |
+| `SYNCPAY_OUTBOX_MAX_RETRIES` / `SYNCPAY_OUTBOX_ENABLED` | Payment outbox retry bound / toggle |
 | `SAGA_RECOVERY_TIMEOUT` / `SAGA_RECOVERY_INTERVAL_MS` / `SAGA_RECOVERY_MAX_ATTEMPTS` | Stuck-saga sweeper tuning (defaults `PT10M` / `60000` / `3`) |
-| `MESHPAY_JWKS_URI` / `MESHPAY_JWT_ISSUER` / `MESHPAY_JWT_AUDIENCE` | Required outside `dev` |
+| `SYNCPAY_JWKS_URI` / `SYNCPAY_JWT_ISSUER` / `SYNCPAY_JWT_AUDIENCE` | Required outside `dev` |
 
 **Dev JWT tooling:** `node scripts/mint-dev-token.js` runs a throwaway JWKS issuer and mints RS256 tokens for exercising the secured profile locally:
 
 ```bash
 node scripts/mint-dev-token.js serve            # JWKS on :8799
 node scripts/mint-dev-token.js mint --role ADMIN
-# then set MESHPAY_JWKS_URI=http://localhost:8799/.well-known/jwks.json
-#      MESHPAY_JWT_ISSUER=meshpay-dev  MESHPAY_JWT_AUDIENCE=meshpay
+# then set SYNCPAY_JWKS_URI=http://localhost:8799/.well-known/jwks.json
+#      SYNCPAY_JWT_ISSUER=syncpay-dev  SYNCPAY_JWT_AUDIENCE=syncpay
 ```
 
 Dev-only — no production IdP is configured.
@@ -237,11 +237,11 @@ Full request schemas: Swagger UI at `:8081/swagger-ui.html` and `:8082/swagger-u
 
 ```bash
 export JAVA_HOME="$(/usr/libexec/java_home -v 17)"   # macOS; set JAVA_HOME elsewhere
-./mvnw -f meshpay-payment-service/pom.xml clean test   # Testcontainers migration + concurrency tests
-./mvnw -f meshpay-saga-service/pom.xml clean test
-./mvnw -f meshpay-api-gateway/pom.xml clean test
-./mvnw -f meshpay-eureka-server/pom.xml clean test
-cd meshpay-dashboard && npm ci && npm test && npm run build
+./mvnw -f syncpay-payment-service/pom.xml clean test   # Testcontainers migration + concurrency tests
+./mvnw -f syncpay-saga-service/pom.xml clean test
+./mvnw -f syncpay-api-gateway/pom.xml clean test
+./mvnw -f syncpay-eureka-server/pom.xml clean test
+cd syncpay-dashboard && npm ci && npm test && npm run build
 ```
 
 CI (`.github/workflows/ci-cd.yml`) runs dependency-check, Maven build + test against Postgres/Kafka services, SpotBugs/PMD, JaCoCo, and Docker image builds on `main`.
@@ -268,14 +268,14 @@ Four views — **Overview, Transactions, Reliability, Offline Client** — poll 
 
 **Overview** — service health, settlement pipeline, outbox backlog
 
-<img src="docs/screenshots/overview.png" alt="MeshPay dashboard Overview tab" width="100%">
+<img src="docs/screenshots/overview.png" alt="SyncPay dashboard Overview tab" width="100%">
 
 </td>
 <td width="50%" valign="top">
 
 **Transactions** — persisted payment records with packet search
 
-<img src="docs/screenshots/transactions.png" alt="MeshPay dashboard Transactions tab" width="100%">
+<img src="docs/screenshots/transactions.png" alt="SyncPay dashboard Transactions tab" width="100%">
 
 </td>
 </tr>
@@ -284,14 +284,14 @@ Four views — **Overview, Transactions, Reliability, Offline Client** — poll 
 
 **Reliability** — Saga states, command outbox, event publication health
 
-<img src="docs/screenshots/reliability.png" alt="MeshPay dashboard Reliability tab" width="100%">
+<img src="docs/screenshots/reliability.png" alt="SyncPay dashboard Reliability tab" width="100%">
 
 </td>
 <td width="50%" valign="top">
 
 **Offline Client** — packet creation and IndexedDB queue with retry
 
-<img src="docs/screenshots/offline-client.png" alt="MeshPay dashboard Offline Client tab" width="100%">
+<img src="docs/screenshots/offline-client.png" alt="SyncPay dashboard Offline Client tab" width="100%">
 
 </td>
 </tr>
@@ -321,11 +321,11 @@ Terraform (`terraform/`) provisions one Ubuntu 24.04 EC2 instance that installs 
 ## Repository layout
 
 ```text
-meshpay-api-gateway/       Spring Cloud Gateway: Eureka routing, JWT enforcement, Resilience4j CB + fallbacks
-meshpay-eureka-server/     Service registry
-meshpay-payment-service/   Packet crypto/verify, idempotent sync, lifecycle, ledger, refunds, outbox, consumers
-meshpay-saga-service/      Persisted saga state machine, command outbox, event consumer, recovery sweeper
-meshpay-dashboard/         React + TS ops dashboard + offline packet client (IndexedDB), Nginx + service worker
+syncpay-api-gateway/       Spring Cloud Gateway: Eureka routing, JWT enforcement, Resilience4j CB + fallbacks
+syncpay-eureka-server/     Service registry
+syncpay-payment-service/   Packet crypto/verify, idempotent sync, lifecycle, ledger, refunds, outbox, consumers
+syncpay-saga-service/      Persisted saga state machine, command outbox, event consumer, recovery sweeper
+syncpay-dashboard/         React + TS ops dashboard + offline packet client (IndexedDB), Nginx + service worker
 monitoring/                prometheus.yml + Grafana provisioning and dashboard JSON
 load-tests/                k6 scripts: health, ops reads, packet sync
 scripts/                   demo packet-key compose helper, packet generator, dev JWT issuer, sonar scan

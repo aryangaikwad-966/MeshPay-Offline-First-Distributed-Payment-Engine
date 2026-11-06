@@ -17,7 +17,7 @@ variable "instance_type" {
 }
 
 variable "repo_url" {
-  description = "Git URL MeshPay is cloned from on the VM (https or ssh)."
+  description = "Git URL SyncPay is cloned from on the VM (https or ssh)."
   type        = string
 }
 
@@ -52,7 +52,7 @@ variable "allowed_app_cidrs" {
 }
 
 variable "extra_env" {
-  description = "Additional KEY=value lines appended to the VM's .env file (e.g. MESHPAY_PACKET_* keys, JWT settings)."
+  description = "Additional KEY=value lines appended to the VM's .env file (e.g. SYNCPAY_PACKET_* keys, JWT settings)."
   type        = map(string)
   default     = {}
 }

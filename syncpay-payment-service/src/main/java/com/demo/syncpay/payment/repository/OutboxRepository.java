@@ -1,6 +1,6 @@
-package com.demo.meshpay.payment.repository;
+package com.demo.syncpay.payment.repository;
 
-import com.demo.meshpay.payment.model.Outbox;
+import com.demo.syncpay.payment.model.Outbox;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;

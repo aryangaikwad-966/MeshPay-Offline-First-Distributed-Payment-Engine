@@ -1,4 +1,4 @@
-package com.demo.meshpay.payment.consumer;
+package com.demo.syncpay.payment.consumer;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;

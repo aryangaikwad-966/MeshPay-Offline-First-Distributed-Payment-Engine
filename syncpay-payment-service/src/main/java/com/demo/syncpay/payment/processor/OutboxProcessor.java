@@ -1,7 +1,7 @@
-package com.demo.meshpay.payment.processor;
+package com.demo.syncpay.payment.processor;
 
-import com.demo.meshpay.payment.model.Outbox;
-import com.demo.meshpay.payment.repository.OutboxRepository;
+import com.demo.syncpay.payment.model.Outbox;
+import com.demo.syncpay.payment.repository.OutboxRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -24,21 +24,21 @@ import java.util.List;
 @Component
 @RequiredArgsConstructor
 @Slf4j
-@ConditionalOnProperty(name = "meshpay.outbox.enabled", havingValue = "true", matchIfMissing = true)
+@ConditionalOnProperty(name = "syncpay.outbox.enabled", havingValue = "true", matchIfMissing = true)
 public class OutboxProcessor {
 
     private final OutboxRepository outboxRepository;
     private final KafkaTemplate<String, String> kafkaTemplate;
     private final MeterRegistry meterRegistry;
 
-    @Value("${meshpay.outbox.max-retries:10}")
+    @Value("${syncpay.outbox.max-retries:10}")
     private int maxRetries;
 
     @PostConstruct
     void registerOutboxGauges() {
-        meterRegistry.gauge("meshpay.outbox.pending", outboxRepository, OutboxRepository::countByProcessedFalse);
-        meterRegistry.gauge("meshpay.outbox.deadletter", outboxRepository, OutboxRepository::countByDeadLetterTrue);
-        meterRegistry.gauge("meshpay.outbox.oldest.pending.seconds", outboxRepository, repository ->
+        meterRegistry.gauge("syncpay.outbox.pending", outboxRepository, OutboxRepository::countByProcessedFalse);
+        meterRegistry.gauge("syncpay.outbox.deadletter", outboxRepository, OutboxRepository::countByDeadLetterTrue);
+        meterRegistry.gauge("syncpay.outbox.oldest.pending.seconds", outboxRepository, repository ->
                 repository.findFirstByProcessedFalseOrderByCreatedAtAsc()
                         .map(entry -> Math.max(0, Instant.now().getEpochSecond() - entry.getCreatedAt().getEpochSecond()))
                         .orElse(0L));
@@ -75,7 +75,7 @@ public class OutboxProcessor {
                     outbox.setDeadLetter(deadLetter);
                     outboxRepository.save(outbox);
 
-                    if (deadLetter) meterRegistry.counter("meshpay.outbox.deadletter.published").increment();
+                    if (deadLetter) meterRegistry.counter("syncpay.outbox.deadletter.published").increment();
 
                     log.debug("Processed outbox event: eventId={}, topic={}", 
                         outbox.getEventId(), outbox.getTopic());
@@ -90,7 +90,7 @@ public class OutboxProcessor {
                     outbox.setErrorMessage(error.substring(0, Math.min(error.length(), 1000)));
                     outbox.setNextAttemptAt(Instant.now().plusSeconds(Math.min(300, 1L << Math.min(retries, 8))));
                     outboxRepository.save(outbox);
-                    meterRegistry.counter("meshpay.outbox.publish.failure").increment();
+                    meterRegistry.counter("syncpay.outbox.publish.failure").increment();
                     log.warn("Outbox event publication failed; retained for retry: eventId={}, retryCount={}",
                             outbox.getEventId(), retries);
                 }

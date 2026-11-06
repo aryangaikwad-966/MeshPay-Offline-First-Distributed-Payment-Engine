@@ -1,4 +1,4 @@
-package com.demo.meshpay.saga.model;
+package com.demo.syncpay.saga.model;
 
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;

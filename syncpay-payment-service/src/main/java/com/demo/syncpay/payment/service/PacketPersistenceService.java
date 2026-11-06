@@ -1,12 +1,12 @@
-package com.demo.meshpay.payment.service;
+package com.demo.syncpay.payment.service;
 
-import com.demo.meshpay.payment.api.DecryptedPaymentPacket;
-import com.demo.meshpay.payment.api.PaymentPacketRequest;
-import com.demo.meshpay.payment.events.EventEnvelope;
-import com.demo.meshpay.payment.model.Transaction;
-import com.demo.meshpay.payment.repository.TransactionRepository;
-import com.demo.meshpay.payment.repository.PaymentLifecycleEventRepository;
-import com.demo.meshpay.payment.model.PaymentLifecycleEvent;
+import com.demo.syncpay.payment.api.DecryptedPaymentPacket;
+import com.demo.syncpay.payment.api.PaymentPacketRequest;
+import com.demo.syncpay.payment.events.EventEnvelope;
+import com.demo.syncpay.payment.model.Transaction;
+import com.demo.syncpay.payment.repository.TransactionRepository;
+import com.demo.syncpay.payment.repository.PaymentLifecycleEventRepository;
+import com.demo.syncpay.payment.model.PaymentLifecycleEvent;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;

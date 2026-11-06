@@ -1,11 +1,11 @@
-package com.demo.meshpay.payment.service;
+package com.demo.syncpay.payment.service;
 
-import com.demo.meshpay.payment.api.DecryptedPaymentPacket;
-import com.demo.meshpay.payment.api.PacketSyncResponse;
-import com.demo.meshpay.payment.api.PaymentPacketRequest;
-import com.demo.meshpay.payment.metrics.PacketMetrics;
-import com.demo.meshpay.payment.repository.TransactionRepository;
-import com.demo.meshpay.payment.security.PacketCryptography;
+import com.demo.syncpay.payment.api.DecryptedPaymentPacket;
+import com.demo.syncpay.payment.api.PacketSyncResponse;
+import com.demo.syncpay.payment.api.PaymentPacketRequest;
+import com.demo.syncpay.payment.metrics.PacketMetrics;
+import com.demo.syncpay.payment.repository.TransactionRepository;
+import com.demo.syncpay.payment.security.PacketCryptography;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -55,7 +55,7 @@ class PaymentPacketSyncServiceTest {
 
         assertEquals("SYNCHRONIZED", response.status());
         verify(persistence).synchronize(envelope, payment, "a".repeat(64));
-        assertEquals(1.0, meterRegistry.get("meshpay.idempotency.redis.fallback").counter().count());
+        assertEquals(1.0, meterRegistry.get("syncpay.idempotency.redis.fallback").counter().count());
     }
 
     @Test
@@ -78,6 +78,6 @@ class PaymentPacketSyncServiceTest {
 
         assertEquals("database write failed", failure.getMessage());
         verify(persistence).synchronize(envelope, payment, "a".repeat(64));
-        verify(attempts, never()).record(any(), any(), eq(com.demo.meshpay.payment.model.PacketAttempt.Outcome.ACCEPTED), any());
+        verify(attempts, never()).record(any(), any(), eq(com.demo.syncpay.payment.model.PacketAttempt.Outcome.ACCEPTED), any());
     }
 }

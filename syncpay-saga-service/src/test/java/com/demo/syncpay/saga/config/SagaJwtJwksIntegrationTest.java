@@ -1,4 +1,4 @@
-package com.demo.meshpay.saga.config;
+package com.demo.syncpay.saga.config;
 
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSHeader;
@@ -33,12 +33,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Import({SecurityConfig.class, SagaSecurityConfigTest.ProbeController.class})
 @ActiveProfiles("prod")
 @TestPropertySource(properties = {
-        "MESHPAY_JWT_ISSUER=https://meshpay-saga.test/",
-        "MESHPAY_JWT_AUDIENCE=meshpay"
+        "SYNCPAY_JWT_ISSUER=https://syncpay-saga.test/",
+        "SYNCPAY_JWT_AUDIENCE=syncpay"
 })
 class SagaJwtJwksIntegrationTest {
-    private static final String ISSUER = "https://meshpay-saga.test/";
-    private static final String AUDIENCE = "meshpay";
+    private static final String ISSUER = "https://syncpay-saga.test/";
+    private static final String AUDIENCE = "syncpay";
     private static RSAKey trustedKey;
     private static RSAKey untrustedKey;
     private static HttpServer jwksServer;
@@ -49,7 +49,7 @@ class SagaJwtJwksIntegrationTest {
     @DynamicPropertySource
     static void jwksProperties(DynamicPropertyRegistry registry) {
         ensureTestIssuer();
-        registry.add("MESHPAY_JWKS_URI", () -> "http://127.0.0.1:" + jwksServer.getAddress().getPort() + "/jwks");
+        registry.add("SYNCPAY_JWKS_URI", () -> "http://127.0.0.1:" + jwksServer.getAddress().getPort() + "/jwks");
     }
 
     @BeforeAll
@@ -61,24 +61,24 @@ class SagaJwtJwksIntegrationTest {
     @Test
     void signedTokenWithOperationsScopeIsAccepted() throws Exception {
         mvc.perform(get("/api/saga/ops/probe").header("Authorization", bearer(token(trustedKey, ISSUER,
-                        AUDIENCE, Instant.now().plusSeconds(120), "meshpay:ops"))))
+                        AUDIENCE, Instant.now().plusSeconds(120), "syncpay:ops"))))
                 .andExpect(status().isOk());
     }
 
     @Test
     void insufficientScopeIsForbidden() throws Exception {
         mvc.perform(get("/api/saga/ops/probe").header("Authorization", bearer(token(trustedKey, ISSUER,
-                        AUDIENCE, Instant.now().plusSeconds(120), "meshpay:metrics:read"))))
+                        AUDIENCE, Instant.now().plusSeconds(120), "syncpay:metrics:read"))))
                 .andExpect(status().isForbidden());
     }
 
     @Test
     void expiredWrongIssuerWrongAudienceMalformedAndWronglySignedTokensAreRejected() throws Exception {
-        assertUnauthorized(token(trustedKey, ISSUER, AUDIENCE, Instant.now().minusSeconds(30), "meshpay:ops"));
+        assertUnauthorized(token(trustedKey, ISSUER, AUDIENCE, Instant.now().minusSeconds(30), "syncpay:ops"));
         assertUnauthorized(token(trustedKey, "https://wrong-issuer.test/", AUDIENCE,
-                Instant.now().plusSeconds(120), "meshpay:ops"));
-        assertUnauthorized(token(trustedKey, ISSUER, "wrong-audience", Instant.now().plusSeconds(120), "meshpay:ops"));
-        assertUnauthorized(token(untrustedKey, ISSUER, AUDIENCE, Instant.now().plusSeconds(120), "meshpay:ops"));
+                Instant.now().plusSeconds(120), "syncpay:ops"));
+        assertUnauthorized(token(trustedKey, ISSUER, "wrong-audience", Instant.now().plusSeconds(120), "syncpay:ops"));
+        assertUnauthorized(token(untrustedKey, ISSUER, AUDIENCE, Instant.now().plusSeconds(120), "syncpay:ops"));
         mvc.perform(get("/api/saga/ops/probe").header("Authorization", "Bearer malformed.token.value"))
                 .andExpect(status().isUnauthorized());
     }
@@ -93,7 +93,7 @@ class SagaJwtJwksIntegrationTest {
     private static String token(RSAKey key, String issuer, String audience, Instant expiresAt, String scope) throws Exception {
         Instant now = Instant.now();
         JWTClaimsSet claims = new JWTClaimsSet.Builder()
-                .issuer(issuer).subject("meshpay-test-operator").audience(audience)
+                .issuer(issuer).subject("syncpay-test-operator").audience(audience)
                 .issueTime(Date.from(now.minusSeconds(1))).notBeforeTime(Date.from(now.minusSeconds(1)))
                 .expirationTime(Date.from(expiresAt)).claim("scope", scope).build();
         SignedJWT signed = new SignedJWT(new JWSHeader.Builder(JWSAlgorithm.RS256).keyID(key.getKeyID()).build(), claims);
@@ -104,7 +104,7 @@ class SagaJwtJwksIntegrationTest {
     private static synchronized void ensureTestIssuer() {
         if (jwksServer != null) return;
         try {
-            trustedKey = new RSAKeyGenerator(2048).keyID("meshpay-saga-integration-key").generate();
+            trustedKey = new RSAKeyGenerator(2048).keyID("syncpay-saga-integration-key").generate();
             untrustedKey = new RSAKeyGenerator(2048).keyID("untrusted-saga-integration-key").generate();
             byte[] body = new JWKSet(trustedKey.toPublicJWK()).toString().getBytes(StandardCharsets.UTF_8);
             jwksServer = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);

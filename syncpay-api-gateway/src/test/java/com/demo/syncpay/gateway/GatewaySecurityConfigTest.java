@@ -1,4 +1,4 @@
-package com.demo.meshpay.gateway;
+package com.demo.syncpay.gateway;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,9 +15,9 @@ import static org.springframework.security.test.web.reactive.server.SecurityMock
 @Import(GatewaySecurityConfig.class)
 @ActiveProfiles("prod")
 @TestPropertySource(properties = {
-        "MESHPAY_JWKS_URI=https://issuer.example.test/keys",
-        "MESHPAY_JWT_ISSUER=https://issuer.example.test/",
-        "MESHPAY_JWT_AUDIENCE=meshpay"
+        "SYNCPAY_JWKS_URI=https://issuer.example.test/keys",
+        "SYNCPAY_JWT_ISSUER=https://issuer.example.test/",
+        "SYNCPAY_JWT_AUDIENCE=syncpay"
 })
 class GatewaySecurityConfigTest {
     @Autowired
@@ -32,7 +32,7 @@ class GatewaySecurityConfigTest {
 
     @Test
     void operationsRoutesRejectAuthenticatedUsersWithoutOperationsScope() {
-        client.mutateWith(mockJwt().authorities(new SimpleGrantedAuthority("SCOPE_meshpay:metrics:read")))
+        client.mutateWith(mockJwt().authorities(new SimpleGrantedAuthority("SCOPE_syncpay:metrics:read")))
                 .get().uri("/api/saga/ops/sagas")
                 .exchange()
                 .expectStatus().isForbidden();

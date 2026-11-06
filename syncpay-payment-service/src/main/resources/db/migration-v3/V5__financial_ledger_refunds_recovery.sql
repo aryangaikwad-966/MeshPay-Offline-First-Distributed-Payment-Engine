@@ -56,7 +56,7 @@ ALTER TABLE outbox ADD COLUMN IF NOT EXISTS last_replayed_at TIMESTAMPTZ;
 -- Seeded demo accounts so settlement has funded counterparties. Balances are
 -- simulated; these are local-development fixtures, not real money.
 INSERT INTO accounts (vpa, holder_name, balance, version) VALUES
-    ('alice@meshpay.local',     'Alice Demo',     50000.00, 0),
-    ('recipient@meshpay.local', 'Recipient Demo',     0.00, 0),
-    ('test-sender@meshpay.local', 'Test Sender',   50000.00, 0)
+    ('alice@syncpay.local',     'Alice Demo',     50000.00, 0),
+    ('recipient@syncpay.local', 'Recipient Demo',     0.00, 0),
+    ('test-sender@syncpay.local', 'Test Sender',   50000.00, 0)
 ON CONFLICT (vpa) DO NOTHING;

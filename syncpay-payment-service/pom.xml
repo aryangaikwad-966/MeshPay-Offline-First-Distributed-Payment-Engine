@@ -12,10 +12,10 @@
     </parent>
 
     <groupId>com.demo</groupId>
-    <artifactId>meshpay-payment-service</artifactId>
+    <artifactId>syncpay-payment-service</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>meshpay-payment-service</name>
-    <description>MeshPay Payment Service - Handles payment processing and settlement</description>
+    <name>syncpay-payment-service</name>
+    <description>SyncPay Payment Service - Handles payment processing and settlement</description>
 
     <properties>
         <java.version>17</java.version>

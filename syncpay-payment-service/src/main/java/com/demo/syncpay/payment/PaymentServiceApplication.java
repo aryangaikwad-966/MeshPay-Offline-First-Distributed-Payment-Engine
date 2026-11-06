@@ -1,4 +1,4 @@
-package com.demo.meshpay.payment;
+package com.demo.syncpay.payment;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;

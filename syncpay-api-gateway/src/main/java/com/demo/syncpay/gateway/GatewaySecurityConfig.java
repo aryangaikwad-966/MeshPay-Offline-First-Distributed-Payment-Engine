@@ -1,4 +1,4 @@
-package com.demo.meshpay.gateway;
+package com.demo.syncpay.gateway;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -19,8 +19,8 @@ import org.springframework.security.web.server.SecurityWebFilterChain;
 @Configuration
 @EnableWebFluxSecurity
 public class GatewaySecurityConfig {
-    private static final String OPS = "SCOPE_meshpay:ops";
-    private static final String METRICS = "SCOPE_meshpay:metrics:read";
+    private static final String OPS = "SCOPE_syncpay:ops";
+    private static final String METRICS = "SCOPE_syncpay:metrics:read";
 
     @Bean
     @Profile("dev")
@@ -47,12 +47,12 @@ public class GatewaySecurityConfig {
     @Bean
     @Profile("!dev")
     ReactiveJwtDecoder gatewayJwtDecoder(
-            @Value("${MESHPAY_JWKS_URI:}") String jwksUri,
-            @Value("${MESHPAY_JWT_ISSUER:}") String issuer,
-            @Value("${MESHPAY_JWT_AUDIENCE:}") String audience) {
+            @Value("${SYNCPAY_JWKS_URI:}") String jwksUri,
+            @Value("${SYNCPAY_JWT_ISSUER:}") String issuer,
+            @Value("${SYNCPAY_JWT_AUDIENCE:}") String audience) {
         if (jwksUri.isBlank() || issuer.isBlank() || audience.isBlank()) {
             throw new IllegalStateException(
-                    "MESHPAY_JWKS_URI, MESHPAY_JWT_ISSUER, and MESHPAY_JWT_AUDIENCE are required outside the dev profile");
+                    "SYNCPAY_JWKS_URI, SYNCPAY_JWT_ISSUER, and SYNCPAY_JWT_AUDIENCE are required outside the dev profile");
         }
 
         NimbusReactiveJwtDecoder decoder = NimbusReactiveJwtDecoder.withJwkSetUri(jwksUri).build();

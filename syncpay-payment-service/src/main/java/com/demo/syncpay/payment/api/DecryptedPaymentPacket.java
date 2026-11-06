@@ -1,4 +1,4 @@
-package com.demo.meshpay.payment.api;
+package com.demo.syncpay.payment.api;
 
 import java.math.BigDecimal;
 

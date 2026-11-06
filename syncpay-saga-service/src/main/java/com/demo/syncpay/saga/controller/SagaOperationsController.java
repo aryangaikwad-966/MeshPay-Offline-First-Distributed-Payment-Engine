@@ -1,11 +1,11 @@
-package com.demo.meshpay.saga.controller;
+package com.demo.syncpay.saga.controller;
 
-import com.demo.meshpay.saga.model.SagaState;
-import com.demo.meshpay.saga.model.SagaTransition;
-import com.demo.meshpay.saga.model.SagaCommandOutbox;
-import com.demo.meshpay.saga.repository.SagaCommandOutboxRepository;
-import com.demo.meshpay.saga.repository.SagaStateRepository;
-import com.demo.meshpay.saga.repository.SagaTransitionRepository;
+import com.demo.syncpay.saga.model.SagaState;
+import com.demo.syncpay.saga.model.SagaTransition;
+import com.demo.syncpay.saga.model.SagaCommandOutbox;
+import com.demo.syncpay.saga.repository.SagaCommandOutboxRepository;
+import com.demo.syncpay.saga.repository.SagaStateRepository;
+import com.demo.syncpay.saga.repository.SagaTransitionRepository;
 import io.swagger.v3.oas.annotations.Operation;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;

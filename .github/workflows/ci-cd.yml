@@ -45,11 +45,11 @@ jobs:
       postgres:
         image: postgres:16-alpine
         env:
-          POSTGRES_DB: meshpay_test
+          POSTGRES_DB: syncpay_test
           POSTGRES_USER: test
           POSTGRES_PASSWORD: test
         options: >-
-          --health-cmd="pg_isready -U test -d meshpay_test"
+          --health-cmd="pg_isready -U test -d syncpay_test"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -97,7 +97,7 @@ jobs:
         run: |
           ./mvnw clean package \
             -DskipTests=false \
-            -Dspring.datasource.url=jdbc:postgresql://localhost:5432/meshpay_test \
+            -Dspring.datasource.url=jdbc:postgresql://localhost:5432/syncpay_test \
             -Dspring.datasource.username=test \
             -Dspring.datasource.password=test \
             -Dspring.datasource.driver-class-name=org.postgresql.Driver \
@@ -107,7 +107,7 @@ jobs:
       - name: Run tests
         run: |
           ./mvnw test \
-            -Dspring.datasource.url=jdbc:postgresql://localhost:5432/meshpay_test \
+            -Dspring.datasource.url=jdbc:postgresql://localhost:5432/syncpay_test \
             -Dspring.datasource.username=test \
             -Dspring.datasource.password=test \
             -Dspring.datasource.driver-class-name=org.postgresql.Driver \
@@ -185,7 +185,7 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: |
-            ${{ secrets.DOCKER_REGISTRY }}/upi-mesh
+            ${{ secrets.DOCKER_REGISTRY }}/syncpay
           tags: |
             type=ref,event=branch
             type=semver,pattern={{version}}
@@ -199,8 +199,8 @@ jobs:
           push: ${{ secrets.DOCKER_USERNAME != '' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=registry,ref=${{ secrets.DOCKER_REGISTRY }}/upi-mesh:buildcache
-          cache-to: type=registry,ref=${{ secrets.DOCKER_REGISTRY }}/upi-mesh:buildcache,mode=max
+          cache-from: type=registry,ref=${{ secrets.DOCKER_REGISTRY }}/syncpay:buildcache
+          cache-to: type=registry,ref=${{ secrets.DOCKER_REGISTRY }}/syncpay:buildcache,mode=max
 
   # Deployment (optional)
   deploy:

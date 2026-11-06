@@ -1,4 +1,4 @@
-package com.demo.meshpay.payment.config;
+package com.demo.syncpay.payment.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

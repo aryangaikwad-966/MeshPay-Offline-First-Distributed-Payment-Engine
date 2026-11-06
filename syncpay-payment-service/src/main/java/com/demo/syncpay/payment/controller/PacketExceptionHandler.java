@@ -1,7 +1,7 @@
-package com.demo.meshpay.payment.controller;
+package com.demo.syncpay.payment.controller;
 
-import com.demo.meshpay.payment.security.PacketCryptography;
-import com.demo.meshpay.payment.service.PaymentPacketSyncService;
+import com.demo.syncpay.payment.security.PacketCryptography;
+import com.demo.syncpay.payment.service.PaymentPacketSyncService;
 import org.springframework.dao.DataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;

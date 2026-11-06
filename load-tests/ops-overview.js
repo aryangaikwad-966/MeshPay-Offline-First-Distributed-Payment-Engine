@@ -9,7 +9,7 @@ import http from 'k6/http';
 import { check, sleep } from 'k6';
 
 const GATEWAY_URL = __ENV.GATEWAY_URL || 'http://localhost:8080';
-const TOKEN = __ENV.MESHPAY_TOKEN || '';
+const TOKEN = __ENV.SYNCPAY_TOKEN || '';
 
 export const options = {
   scenarios: {

@@ -1,4 +1,4 @@
-package com.demo.meshpay.saga.migration;
+package com.demo.syncpay.saga.migration;
 
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Test;

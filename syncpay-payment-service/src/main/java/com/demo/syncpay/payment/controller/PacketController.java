@@ -1,9 +1,9 @@
-package com.demo.meshpay.payment.controller;
+package com.demo.syncpay.payment.controller;
 
-import com.demo.meshpay.payment.api.PacketSyncResponse;
-import com.demo.meshpay.payment.api.PaymentPacketRequest;
-import com.demo.meshpay.payment.security.PacketCryptography;
-import com.demo.meshpay.payment.service.PaymentPacketSyncService;
+import com.demo.syncpay.payment.api.PacketSyncResponse;
+import com.demo.syncpay.payment.api.PaymentPacketRequest;
+import com.demo.syncpay.payment.security.PacketCryptography;
+import com.demo.syncpay.payment.service.PaymentPacketSyncService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import io.github.resilience4j.ratelimiter.annotation.RateLimiter;

@@ -1,11 +1,11 @@
-package com.demo.meshpay.payment.metrics;
+package com.demo.syncpay.payment.metrics;
 
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
-import com.demo.meshpay.payment.model.Transaction;
-import com.demo.meshpay.payment.repository.TransactionRepository;
+import com.demo.syncpay.payment.model.Transaction;
+import com.demo.syncpay.payment.repository.TransactionRepository;
 import org.springframework.stereotype.Component;
 
 
