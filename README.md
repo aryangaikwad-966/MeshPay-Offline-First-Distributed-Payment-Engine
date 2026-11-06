@@ -2,7 +2,7 @@
 
 # SyncPay
 
-### An offline-first, event-driven payment engine
+### An offline-first, Distributed payment engine
 
 Cryptographically secured packet sync · durable idempotency · Kafka sagas · simulated ledger · ops dashboard
 

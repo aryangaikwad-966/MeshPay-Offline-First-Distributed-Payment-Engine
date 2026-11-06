@@ -1,3 +1,5 @@
+name: syncpay
+
 services:
   # PostgreSQL Database for Payment Service
   postgres-payment:
