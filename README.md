@@ -132,6 +132,7 @@ Compose reads the root `.env` (git-ignored). `.env.example` selects `dev`, which
 | `SYNCPAY_OUTBOX_MAX_RETRIES` / `SYNCPAY_OUTBOX_ENABLED` | Payment outbox retry bound / toggle |
 | `SAGA_RECOVERY_TIMEOUT` / `SAGA_RECOVERY_INTERVAL_MS` / `SAGA_RECOVERY_MAX_ATTEMPTS` | Stuck-saga sweeper tuning (defaults `PT10M` / `60000` / `3`) |
 | `SYNCPAY_JWKS_URI` / `SYNCPAY_JWT_ISSUER` / `SYNCPAY_JWT_AUDIENCE` | Required outside `dev` |
+| `CORS_ALLOWED_ORIGINS` | Comma-separated exact origins allowed by Gateway, Payment, and Saga (default `http://localhost:3000,http://localhost:3001,http://127.0.0.1:3001,http://localhost:8080`) |
 
 **Dev JWT tooling:** `node scripts/mint-dev-token.js` runs a throwaway JWKS issuer and mints RS256 tokens for exercising the secured profile locally:
 
