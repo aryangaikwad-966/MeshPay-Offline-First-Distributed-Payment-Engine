@@ -39,20 +39,7 @@ Payment clients are unreliable: they go offline, retry after timeouts, and resub
 
 SyncPay is four Spring Boot services plus their data stores, all wired together by Docker Compose. Requests enter through one gateway; services talk to each other **only through Kafka** — never by direct HTTP calls.
 
-```mermaid
-flowchart LR
-    A["Client<br/>(browser / offline packet)"] --> B["API Gateway<br/>:8080"]
-    B --> C["Payment Service<br/>:8081"]
-    B --> D["Saga Service<br/>:8082"]
-    C <-->|"events & commands"| K{{"Kafka"}}
-    D <-->|"events & commands"| K
-    C --> E[("PostgreSQL<br/>payments, ledger, outbox")]
-    C --> F[("Redis<br/>idempotency claims")]
-    D --> G[("PostgreSQL<br/>saga state, outbox")]
-    C -.->|register| H["Eureka<br/>:8761"]
-    D -.->|register| H
-    B -.->|discover| H
-```
+![SyncPay architecture diagram](docs/architecture.svg)
 
 | Component | Port | Responsibility |
 | --- | ---: | --- |
@@ -70,43 +57,7 @@ All published ports bind to `127.0.0.1` in Compose.
 
 ## Payment lifecycle
 
-```mermaid
-sequenceDiagram
-    autonumber
-    participant B as Browser (offline client)
-    participant P as Payment Service
-    participant K as Kafka
-    participant S as Saga Service
-    participant DB as PostgreSQL ×2
-
-    Note over B: create packet · AES-GCM encrypt · RSA-OAEP wrap<br/>RSA-PSS sign · persist in IndexedDB
-    B->>P: POST /api/payment/packets/sync (on reconnect)
-    P->>P: verify signature → unwrap key → decrypt + AAD<br/>validate fields · time window · nonce replay
-    P->>DB: one transaction: payment + lifecycle + outbox
-    P-->>B: 201 SYNCHRONIZED (or 200 DUPLICATE / 202 IN_PROGRESS)
-
-    P->>K: payment-packet-synchronized (via outbox)
-    K->>S: payment event
-    S->>DB: create saga + persist state/transition
-    S->>K: saga-validate-payment-command (via outbox)
-    K->>P: validate command
-    P->>DB: status → VALIDATED + outbox event
-    P->>K: payment-validated
-    K->>S: payment event
-    S->>K: saga-request-settlement-command
-    K->>P: settlement request
-    P->>DB: status → SETTLEMENT_REQUESTED + outbox event
-    P->>K: payment-settlement-requested
-    K->>S: payment event
-    S->>K: saga-complete-settlement-command
-    K->>P: complete settlement
-    P->>DB: atomic debit/credit + 2 ledger entries → SETTLED
-    P->>K: payment-settled
-    K->>S: payment event
-    S->>DB: SAGA_COMPLETED
-
-    Note over P,S: any failure → payment-failed → saga compensation<br/>(SAGA_COMPENSATED) · stuck sagas → recovery sweeper → MANUAL_REVIEW
-```
+![SyncPay payment lifecycle diagram](docs/payment-lifecycle.svg)
 
 States are deliberately distinct — a queued or synchronized packet is **not** a settled payment:
 

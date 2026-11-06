@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="470" viewBox="0 0 1100 470" role="img" aria-labelledby="title desc">
+  <title id="title">SyncPay architecture</title>
+  <desc id="desc">The browser client sends requests through the API Gateway to the Payment and Saga services. The services communicate through Kafka and use PostgreSQL, Redis, and Eureka.</desc>
+  <style>
+    text { font-family: Arial, Helvetica, sans-serif; fill: #172033; }
+    .box { fill: #eef4ff; stroke: #3566b8; stroke-width: 2; rx: 10; }
+    .store { fill: #fff7e6; stroke: #c47b00; stroke-width: 2; }
+    .bus { fill: #e9f8ef; stroke: #238636; stroke-width: 2; }
+    .label { font-size: 16px; font-weight: 700; text-anchor: middle; }
+    .sub { font-size: 13px; text-anchor: middle; }
+    .edge { stroke: #536273; stroke-width: 2; fill: none; marker-end: url(#arrow); }
+    .dashed { stroke-dasharray: 7 5; }
+    .edge-label { font-size: 12px; fill: #536273; text-anchor: middle; }
+  </style>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#536273"/>
+    </marker>
+  </defs>
+
+  <rect class="box" x="30" y="185" width="165" height="70"/>
+  <text class="label" x="112" y="214">Browser client</text>
+  <text class="sub" x="112" y="236">offline packet</text>
+
+  <rect class="box" x="250" y="185" width="165" height="70"/>
+  <text class="label" x="332" y="214">API Gateway</text>
+  <text class="sub" x="332" y="236">:8080</text>
+
+  <rect class="box" x="470" y="90" width="175" height="70"/>
+  <text class="label" x="557" y="119">Payment Service</text>
+  <text class="sub" x="557" y="141">:8081</text>
+
+  <rect class="box" x="470" y="280" width="175" height="70"/>
+  <text class="label" x="557" y="309">Saga Service</text>
+  <text class="sub" x="557" y="331">:8082</text>
+
+  <rect class="bus" x="720" y="185" width="150" height="70" rx="35"/>
+  <text class="label" x="795" y="225">Kafka</text>
+
+  <ellipse class="store" cx="970" cy="105" rx="105" ry="38"/>
+  <text class="label" x="970" y="101">PostgreSQL</text>
+  <text class="sub" x="970" y="120">payments / ledger</text>
+
+  <ellipse class="store" cx="970" cy="285" rx="105" ry="38"/>
+  <text class="label" x="970" y="281">PostgreSQL</text>
+  <text class="sub" x="970" y="300">saga state / outbox</text>
+
+  <rect class="store" x="865" y="370" width="210" height="55" rx="10"/>
+  <text class="label" x="970" y="394">Redis</text>
+  <text class="sub" x="970" y="412">idempotency claims</text>
+
+  <rect class="store" x="30" y="45" width="165" height="55" rx="10"/>
+  <text class="label" x="112" y="69">Eureka</text>
+  <text class="sub" x="112" y="87">service registry :8761</text>
+
+  <path class="edge" d="M195 220 H250"/>
+  <path class="edge" d="M415 205 L470 130"/>
+  <path class="edge" d="M415 235 L470 310"/>
+  <path class="edge" d="M645 125 H720"/>
+  <path class="edge" d="M645 315 H720"/>
+  <path class="edge" d="M870 205 L900 135"/>
+  <path class="edge" d="M870 235 L900 275"/>
+  <path class="edge" d="M645 145 L865 385"/>
+  <path class="edge dashed" d="M195 72 H225 V170 H300"/>
+  <path class="edge dashed" d="M195 82 H215 V290 H470"/>
+  <text class="edge-label" x="680" y="115">events &amp; commands</text>
+  <text class="edge-label" x="680" y="305">events &amp; commands</text>
+</svg>

@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="910" viewBox="0 0 1200 910" role="img" aria-labelledby="title desc">
+  <title id="title">SyncPay payment lifecycle</title>
+  <desc id="desc">A payment packet is synchronized, validated, requested for settlement, settled, and completed through Kafka commands and events.</desc>
+  <style>
+    text { font-family: Arial, Helvetica, sans-serif; fill: #172033; }
+    .actor { fill: #eef4ff; stroke: #3566b8; stroke-width: 2; rx: 8; }
+    .step { fill: #f7f9fc; stroke: #536273; stroke-width: 1.5; rx: 8; }
+    .note { fill: #fff7e6; stroke: #c47b00; stroke-width: 1.5; rx: 8; }
+    .label { font-size: 15px; font-weight: 700; text-anchor: middle; }
+    .text { font-size: 13px; text-anchor: middle; }
+    .line { stroke: #536273; stroke-width: 2; fill: none; marker-end: url(#arrow); }
+  </style>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#536273"/>
+    </marker>
+  </defs>
+  <rect class="actor" x="40" y="25" width="190" height="55"/><text class="label" x="135" y="58">Browser</text>
+  <rect class="actor" x="300" y="25" width="190" height="55"/><text class="label" x="395" y="58">Payment Service</text>
+  <rect class="actor" x="560" y="25" width="150" height="55"/><text class="label" x="635" y="58">Kafka</text>
+  <rect class="actor" x="780" y="25" width="190" height="55"/><text class="label" x="875" y="58">Saga Service</text>
+  <rect class="actor" x="1030" y="25" width="130" height="55"/><text class="label" x="1095" y="58">Database</text>
+
+  <path class="line" d="M135 80 V860"/><path class="line" d="M395 80 V860"/>
+  <path class="line" d="M635 80 V860"/><path class="line" d="M875 80 V860"/>
+  <path class="line" d="M1095 80 V860"/>
+
+  <rect class="note" x="35" y="105" width="200" height="54"/>
+  <text class="text" x="135" y="128">Create, encrypt, sign,</text><text class="text" x="135" y="146">and queue packet offline</text>
+  <path class="line" d="M135 185 H395"/><text class="text" x="265" y="178">sync packet on reconnect</text>
+  <rect class="step" x="285" y="205" width="220" height="54"/>
+  <text class="text" x="395" y="228">Verify, decrypt, validate,</text><text class="text" x="395" y="246">and check nonce replay</text>
+  <path class="line" d="M395 285 H1095"/><text class="text" x="745" y="278">commit payment + lifecycle + outbox</text>
+  <path class="line" d="M395 365 H135"/><text class="text" x="265" y="358">201 synchronized / duplicate / in progress</text>
+
+  <path class="line" d="M395 415 H635"/><text class="text" x="515" y="408">payment synchronized event</text>
+  <path class="line" d="M635 455 H875"/><text class="text" x="755" y="448">payment event</text>
+  <rect class="step" x="765" y="475" width="220" height="50"/><text class="text" x="875" y="505">Create persisted saga</text>
+  <path class="line" d="M875 555 H635"/><text class="text" x="755" y="548">validate-payment command</text>
+  <path class="line" d="M635 595 H395"/><text class="text" x="515" y="588">validate command</text>
+  <path class="line" d="M395 635 H1095"/><text class="text" x="745" y="628">status VALIDATED + outbox event</text>
+  <path class="line" d="M395 675 H635"/><text class="text" x="515" y="668">payment validated</text>
+  <path class="line" d="M635 715 H875"/><text class="text" x="755" y="708">request settlement</text>
+  <path class="line" d="M875 755 H635"/><text class="text" x="755" y="748">complete settlement command</text>
+  <path class="line" d="M635 795 H395"/><text class="text" x="515" y="788">complete settlement</text>
+  <path class="line" d="M395 835 H1095"/><text class="text" x="745" y="828">atomic debit / credit, ledger entries, SETTLED</text>
+  <rect class="note" x="315" y="865" width="660" height="34"/>
+  <text class="text" x="645" y="887">Failure: payment-failed → compensation → SAGA_COMPENSATED; stuck sagas → MANUAL_REVIEW</text>
+</svg>
