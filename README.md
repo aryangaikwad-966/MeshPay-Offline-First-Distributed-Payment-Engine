@@ -37,8 +37,8 @@ Payment clients are unreliable: they go offline, retry after timeouts, and resub
 ## Architecture
 
 ```mermaid
-flowchart TB
-    subgraph CLIENT["Browser — dashboard :3001"]
+flowchart LR
+    subgraph CLIENT["Browser"]
         UI["React ops dashboard"]
         OC["Offline client<br/>Web Crypto + IndexedDB"]
     end
@@ -48,17 +48,17 @@ flowchart TB
         GW["API Gateway :8080<br/>Eureka routing · JWT · circuit breakers"]
     end
 
-    subgraph SERVICES["Application services"]
-        PAY["Payment Service :8081<br/>packet verify · idempotency · ledger · outbox"]
-        SAG["Saga Service :8082<br/>state machine · command outbox · recovery sweeper"]
+    subgraph SERVICES["Services"]
+        PAY["Payment :8081<br/>verify · idempotency · ledger · outbox"]
+        SAG["Saga :8082<br/>state machine · command outbox · recovery"]
         EUREKA["Eureka :8761"]
     end
 
     subgraph DATA["Data & messaging"]
-        PDB["PostgreSQL :5433<br/>meshpay_payment"]
-        SDB["PostgreSQL :5434<br/>meshpay_saga"]
-        REDIS["Redis :6379<br/>idempotency claims"]
-        KAFKA["Kafka :9092<br/>lifecycle events + commands"]
+        PDB["PostgreSQL :5433"]
+        SDB["PostgreSQL :5434"]
+        REDIS["Redis :6379"]
+        KAFKA["Kafka :9092"]
     end
 
     subgraph OPS["Observability"]
@@ -92,34 +92,42 @@ All dashboard API traffic routes through the gateway, so it gets Eureka service 
 
 ## Payment lifecycle
 
-```text
-Browser (offline)              Payment Service                 Kafka               Saga Service
-─────────────────             ────────────────               ─────               ─────────────
-create packet
-AES-GCM encrypt
-RSA-OAEP wrap key
-RSA-PSS sign
-store in IndexedDB
-      │  on reconnect
-      ▼
-POST /packets/sync ──────► verify signature → unwrap key →
-                          AES-GCM decrypt + AAD →
-                          validate fields, time window,
-                          nonce replay check
-                          │ one DB transaction:
-                          │  transaction + lifecycle + outbox
-                          ▼
-                     SYNCHRONIZED ──outbox──► payment-packet-synchronized
-                                                                │ create saga +
-                                                                │ queue VALIDATE
-                     ◄── saga-validate-payment-command ──────────┘
-                     VALIDATED ──outbox──► payment-validated ──► queue REQUEST_SETTLEMENT
-                     ◄── saga-request-settlement-command ─────────────────────────┘
-                     SETTLEMENT_REQUESTED ──► payment-settlement-requested ──► queue COMPLETE_SETTLEMENT
-                     ◄── saga-complete-settlement-command ────────────────────────────────┘
-                     SETTLED (atomic debit/credit + 2 ledger entries)
-                     ──outbox──► payment-settled ──► SAGA_COMPLETED
-                     any failure ──► payment-failed ──► saga compensation (SAGA_COMPENSATED)
+```mermaid
+sequenceDiagram
+    autonumber
+    participant B as Browser (offline client)
+    participant P as Payment Service
+    participant K as Kafka
+    participant S as Saga Service
+    participant DB as PostgreSQL ×2
+
+    Note over B: create packet · AES-GCM encrypt · RSA-OAEP wrap<br/>RSA-PSS sign · persist in IndexedDB
+    B->>P: POST /api/payment/packets/sync (on reconnect)
+    P->>P: verify signature → unwrap key → decrypt + AAD<br/>validate fields · time window · nonce replay
+    P->>DB: one transaction: payment + lifecycle + outbox
+    P-->>B: 201 SYNCHRONIZED (or 200 DUPLICATE / 202 IN_PROGRESS)
+
+    P->>K: payment-packet-synchronized (via outbox)
+    K->>S: payment event
+    S->>DB: create saga + persist state/transition
+    S->>K: saga-validate-payment-command (via outbox)
+    K->>P: validate command
+    P->>DB: status → VALIDATED + outbox event
+    P->>K: payment-validated
+    K->>S: payment event
+    S->>K: saga-request-settlement-command
+    K->>P: settlement request
+    P->>DB: status → SETTLEMENT_REQUESTED + outbox event
+    P->>K: payment-settlement-requested
+    K->>S: payment event
+    S->>K: saga-complete-settlement-command
+    K->>P: complete settlement
+    P->>DB: atomic debit/credit + 2 ledger entries → SETTLED
+    P->>K: payment-settled
+    K->>S: payment event
+    S->>DB: SAGA_COMPLETED
+
+    Note over P,S: any failure → payment-failed → saga compensation<br/>(SAGA_COMPENSATED) · stuck sagas → recovery sweeper → MANUAL_REVIEW
 ```
 
 States are deliberately distinct — a queued or synchronized packet is **not** a settled payment:
