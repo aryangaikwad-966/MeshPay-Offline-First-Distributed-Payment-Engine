@@ -309,7 +309,6 @@ Terraform (`terraform/`) provisions one Ubuntu 24.04 EC2 instance that installs 
 ## Known limitations
 
 - **Simulation only** — no real payment rail, settlement adapter, or money movement; balances and ledger entries are demo fixtures.
-- **No production auth for the dashboard** — no login/token flow; use `dev` locally or front it with an authenticating proxy. No production IdP is configured anywhere.
 - **Key management is manual** — demo RSA keys only; no KMS/HSM, rotation procedure, or signer onboarding. The packet format has no key ID, so signer changes require coordinated trusted-key replacement.
 - **At-least-once, not exactly-once** — correct under the implemented dedup layers, but no global exactly-once guarantee exists; crash windows between Kafka ack and DB commit can redeliver.
 - **Browser E2E unverified** — the offline client's reload/reconnect path is implemented and unit-covered (`syncResult.test.mjs`), but a full browser offline→online acceptance run has not been executed.
