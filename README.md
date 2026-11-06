@@ -62,31 +62,46 @@ MeshPay explores how a backend can safely accept delayed payment packets when cl
 ## Architecture
 
 ```mermaid
-flowchart LR
-    Client[Dashboard offline packet client] -->|HTTP packet sync| Gateway[API Gateway :8080]
-    Gateway -->|Eureka-discovered route| Payment[Payment Service :8081]
-    Gateway -->|Eureka-discovered route| Saga[Saga Service :8082]
+flowchart TB
+    Client["Offline Packet Client"]
+    Browser["React Dashboard :3001"]
+    Gateway["API Gateway :8080"]
+    Payment["Payment Service :8081"]
+    Saga["Saga Service :8082"]
 
-    Browser[React dashboard :3001] -->|Nginx proxy /api/payment| Payment
-    Browser -->|Nginx proxy /api/saga| Saga
+    Redis[("Redis")]
+    PayDB[("Payment PostgreSQL")]
+    SagaDB[("Saga PostgreSQL")]
+    Kafka[("Apache Kafka")]
+    Eureka["Eureka :8761"]
+    Prom["Prometheus :9090"]
+    Grafana["Grafana :3000"]
 
-    Payment -->|SET NX coordination claim| Redis[(Redis)]
-    Payment -->|payment + lifecycle + ledger + refund + outbox transaction| PayDB[(Payment PostgreSQL)]
-    Payment -->|outbox lifecycle events| Kafka[(Kafka)]
-    Kafka -->|payment events| Saga
-    Saga -->|persist state and history| SagaDB[(Saga PostgreSQL)]
-    Saga -->|transactional command outbox| SagaDB
-    Saga -->|outbox publisher| Kafka
-    Kafka -->|Saga commands| Payment
+    Client -->|"HTTP packet sync"| Gateway
+    Browser -->|"Nginx proxy"| Payment
+    Browser -->|"Nginx proxy"| Saga
 
-    Payment -->|registers| Eureka[Eureka :8761]
-    Saga -->|registers| Eureka
-    Gateway -. service discovery .-> Eureka
+    Gateway --> Payment
+    Gateway --> Saga
+    Gateway -.-> Eureka
 
-    Prom[Prometheus :9090] -->|scrape| Payment
-    Prom -->|scrape| Saga
-    Prom -->|scrape| Gateway
-    Grafana[Grafana :3000] -->|Prometheus datasource| Prom
+    Payment -->|"SET NX"| Redis
+    Payment -->|"Payment, ledger, refund, outbox transaction"| PayDB
+    Payment -->|"Publish events"| Kafka
+
+    Kafka -->|"Payment events"| Saga
+    Saga -->|"Saga state and history"| SagaDB
+    Saga -->|"Command outbox"| SagaDB
+    Saga -->|"Publish commands"| Kafka
+    Kafka -->|"Saga commands"| Payment
+
+    Payment -.-> Eureka
+    Saga -.-> Eureka
+
+    Prom -->|"Scrape metrics"| Payment
+    Prom -->|"Scrape metrics"| Saga
+    Prom -->|"Scrape metrics"| Gateway
+    Grafana -->|"Prometheus datasource"| Prom
 ```
 
 The dashboard's Nginx proxy talks directly to Payment and Saga APIs; it does not route dashboard calls through the API Gateway. Compose binds published ports to loopback by default. Redis is not the source of payment correctness. Payment and Saga command publication use database outboxes with at-least-once semantics.
