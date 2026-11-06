@@ -1,57 +1,38 @@
+<div align="center">
+
 # MeshPay
 
-### An offline-first, event-driven payment engine with cryptographic packet sync, durable idempotency, and saga orchestration.
+### An offline-first, event-driven payment engine
 
-MeshPay is a distributed payment backend that safely accepts payment packets created on disconnected clients, synchronizes them exactly once when connectivity returns, and drives them through a multi-step settlement workflow built on Kafka, PostgreSQL transactional outboxes, Redis coordination, and persisted Saga state — shipped with an operational dashboard and a browser-based offline client.
+Cryptographically secured packet sync · durable idempotency · Kafka sagas · simulated ledger · ops dashboard
 
-> **Scope:** MeshPay is a local engineering demonstration, not a bank or payment processor. Settlement, balances, and ledger entries are simulated — no real money moves and no external payment rail is integrated.
+[![Java](https://img.shields.io/badge/Java-17-ED8B00?logo=openjdk&logoColor=white)](https://openjdk.org)
+[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.3-6DB33F?logo=springboot&logoColor=white)](https://spring.io/projects/spring-boot)
+[![Kafka](https://img.shields.io/badge/Kafka-3.5-231F20?logo=apachekafka&logoColor=white)](https://kafka.apache.org)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white)](https://postgresql.org)
+[![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)](https://react.dev)
+[![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)](https://docs.docker.com/compose/)
+[![License](https://img.shields.io/badge/license-unspecified-lightgrey)](#license)
+
+Safely accepts payment packets created on disconnected clients, synchronizes them **exactly once** on reconnect, and drives them through a resilient settlement workflow.
+
+> MeshPay is a local engineering demonstration — settlement and balances are **simulated**. No real money moves.
+
+</div>
 
 ---
 
-## Contents
-
-- [Overview](#overview)
-- [Key features](#key-features)
-- [Architecture](#architecture)
-- [Payment lifecycle](#payment-lifecycle)
-- [Technology stack](#technology-stack)
-- [Quick start](#quick-start)
-- [Packet key setup](#packet-key-setup-local-demo)
-- [Environment variables](#environment-variables)
-- [API surface](#api-surface)
-- [Engineering decisions](#engineering-decisions-and-reliability-mechanisms)
-- [Testing & verification](#testing--verification)
-- [Dashboard](#dashboard)
-- [Static analysis & deployment](#static-analysis-and-deployment)
-- [Known limitations](#known-limitations)
-- [Repository layout](#repository-layout)
-
 ## Overview
 
-The core problem MeshPay addresses is *delayed, unreliable ingestion*: a client may create a payment while offline, retry after timeouts, or submit the same packet concurrently from multiple attempts. Naive ingestion double-spends, double-posts, or silently loses payments.
+Payment clients are unreliable: they go offline, retry after timeouts, and resubmit the same packet concurrently. Naive ingestion double-posts or silently loses payments. MeshPay solves this with layered defenses:
 
-MeshPay's answer is layered:
-
-1. **Client-side cryptography** — the browser encrypts each payment into a signed envelope (AES-256-GCM payload, RSA-OAEP key wrap, RSA-PSS signature) and persists it in IndexedDB until acknowledged.
-2. **Server-side verification** — the Payment Service authenticates the envelope, unwraps the key, decrypts, validates fields and the offline time window, then commits payment + lifecycle + outbox rows in one PostgreSQL transaction.
-3. **Durable idempotency** — Redis `SET NX` claims coordinate fast-path duplicates; PostgreSQL unique constraints (`packet_hash`, `packet_id`, `(sender_vpa, nonce)`) are the authoritative barrier.
-4. **Event-driven settlement** — lifecycle events flow through Kafka via transactional outboxes; a Saga service orchestrates *validate → settle → complete* with persisted state, transition history, deduplication, and a stuck-saga recovery sweeper.
-5. **Financial correctness** — simulated settlement debits/credits accounts under `SELECT … FOR UPDATE` and posts append-only ledger entries; full refunds write compensating entries idempotently.
-
-## Key features
-
-| Capability | Implementation |
+| Layer | Mechanism |
 | --- | --- |
-| Offline payment packets | Browser Web Crypto creates AES-256-GCM / RSA-OAEP / RSA-PSS envelopes; IndexedDB queue with stable identity, exponential retry, and manual reconciliation |
-| Exactly-once ingestion | Redis claim + PostgreSQL unique constraints + canonical `SHA-256` packet hash; 24 concurrent duplicate submissions produce one durable payment |
-| Transactional outbox | `FOR UPDATE SKIP LOCKED` claiming, broker-acknowledged publish, bounded exponential retry, `.DLT` dead-lettering, audited replay API |
-| Saga orchestration | Persisted state machine with explicit transition table, transition history, command outbox, event deduplication, conservative stuck-saga recovery (`MANUAL_REVIEW`, never auto-settle) |
-| Simulated ledger | Pessimistic account locking, append-only `ledger_entries` with unique-leg constraint, `BigDecimal` / `NUMERIC(19,2)`, full idempotent refunds |
-| Service security | JWT resource-server validation (JWKS, issuer, audience, `meshpay:ops` / `meshpay:metrics:read` scopes) outside the `dev` profile, in all three services |
-| Resilience | Resilience4j circuit breakers, rate limiting, and retries at gateway and payment boundaries |
-| Observability | Micrometer / Prometheus metrics, Grafana dashboard provisioning, correlation-ID propagation through HTTP and Kafka consumers |
-| Operations UI | React + TypeScript dashboard (Overview, Transactions, Reliability, Offline Client) behind Nginx with a shell-only service worker |
-| Dev tooling | k6 load tests, SonarQube profile, `scripts/mint-dev-token.js` JWKS/JWT dev issuer, Terraform EC2 deployment |
+| **Client** | Browser Web Crypto builds a signed, encrypted envelope (AES-256-GCM payload · RSA-OAEP key wrap · RSA-PSS signature) and persists it in IndexedDB until acknowledged |
+| **Ingestion** | Payment Service verifies signature → unwraps key → decrypts with AAD → validates fields, time window, and nonce replay, then commits payment + lifecycle + outbox in **one PostgreSQL transaction** |
+| **Idempotency** | Redis `SET NX` claims coordinate fast-path duplicates; PostgreSQL unique constraints (`packet_hash`, `packet_id`, `(sender_vpa, nonce)`) are the authoritative barrier |
+| **Settlement** | Kafka lifecycle events flow through transactional outboxes; a Saga service orchestrates *validate → settle → complete* with persisted state, transition history, deduplication, and stuck-saga recovery |
+| **Financials** | Atomic debit/credit under `SELECT … FOR UPDATE`, append-only `ledger_entries`, idempotent full refunds with compensating entries |
 
 ## Architecture
 
@@ -107,7 +88,7 @@ flowchart TB
     GRAF --> PROM
 ```
 
-All dashboard API traffic goes through the gateway (`api-gateway:8080`), so it gets Eureka routing and — outside `dev` — JWT enforcement. Service health checks proxy directly to each service's `/actuator/health`. Compose binds every published port to `127.0.0.1`.
+All dashboard API traffic routes through the gateway, so it gets Eureka service discovery and — outside `dev` — JWT enforcement. Compose binds every published port to `127.0.0.1`.
 
 ## Payment lifecycle
 
@@ -151,22 +132,6 @@ States are deliberately distinct — a queued or synchronized packet is **not** 
 | `REJECTED` / `REFUNDED` | Terminal failure / compensated-by-refund states |
 | `SAGA_COMPLETED` | Local demo workflow finished — **not** a real-world settlement |
 
-## Technology stack
-
-| Layer | Technology |
-| --- | --- |
-| Services | Java 17 · Spring Boot 3.3.5 · Spring Cloud 2023.0.3 (Gateway, Eureka) · Maven Wrapper |
-| Data | PostgreSQL 16 (one DB per service) · Flyway migrations · Hibernate `validate` |
-| Coordination | Redis 7 — `SET NX` claims with Lua release/complete scripts |
-| Messaging | Apache Kafka 3 (Confluent 7.5 images, ZooKeeper) |
-| Packet crypto | AES-256-GCM · RSA-OAEP (SHA-256/MGF1) · RSA-PSS (SHA-256) · Web Crypto on the client |
-| Resilience | Resilience4j circuit breakers, rate limiter, retry |
-| Security | Spring Security OAuth2 resource server, JWKS JWT validation |
-| Frontend | React 18 · TypeScript · Vite 6 · Tailwind CSS 4 · Nginx |
-| Observability | Micrometer · Prometheus · Grafana (provisioned) · OpenTelemetry deps (no collector configured) |
-| Testing | JUnit 5 · Mockito · Testcontainers · Node test runner · k6 |
-| Analysis / IaC | SonarQube CE (opt-in profile) · Terraform (single AWS EC2 + cloud-init) |
-
 ## Quick start
 
 **Prerequisites:** Docker Desktop with Compose (full stack) · Java 17 (Maven tests) · Node.js 20+ (dashboard/scripts only) · k6 and Terraform optional.
@@ -191,7 +156,7 @@ docker compose ps           # wait for healthy
 - Wipe local volumes (PostgreSQL, Redis, Kafka, monitoring): `docker compose down -v` — destructive
 - Payment and Saga apply Flyway migrations at startup (Hibernate `validate` mode); unversioned legacy databases are baselined and migrated forward. **Back up both databases before upgrading** — Flyway DDL rollback is not automatic.
 
-## Packet key setup (local demo)
+### Packet key setup (local demo)
 
 Packet sync requires a server RSA keypair and at least one trusted sender public key. `.local-keys/` is git-ignored; generate a demo pair:
 
@@ -267,6 +232,22 @@ Full request schemas: Swagger UI at `:8081/swagger-ui.html` and `:8082/swagger-u
 - **Fail-closed security.** Outside `dev`, missing JWT configuration prevents startup; ops/metrics scopes are enforced per route at both gateway and service level. All published ports bind to loopback.
 - **Correlation everywhere.** `X-Correlation-Id` propagates through MDC in HTTP and per-record in Kafka consumers via `RecordInterceptor`.
 
+## Technology stack
+
+| Layer | Technology |
+| --- | --- |
+| Services | Java 17 · Spring Boot 3.3.5 · Spring Cloud 2023.0.3 (Gateway, Eureka) · Maven Wrapper |
+| Data | PostgreSQL 16 (one DB per service) · Flyway migrations · Hibernate `validate` |
+| Coordination | Redis 7 — `SET NX` claims with Lua release/complete scripts |
+| Messaging | Apache Kafka 3 (Confluent 7.5 images, ZooKeeper) |
+| Packet crypto | AES-256-GCM · RSA-OAEP (SHA-256/MGF1) · RSA-PSS (SHA-256) · Web Crypto on the client |
+| Resilience | Resilience4j circuit breakers, rate limiter, retry |
+| Security | Spring Security OAuth2 resource server, JWKS JWT validation |
+| Frontend | React 18 · TypeScript · Vite 6 · Tailwind CSS 4 · Nginx |
+| Observability | Micrometer · Prometheus · Grafana (provisioned) · OpenTelemetry deps (no collector configured) |
+| Testing | JUnit 5 · Mockito · Testcontainers · Node test runner · k6 |
+| Analysis / IaC | SonarQube CE (opt-in profile) · Terraform (single AWS EC2 + cloud-init) |
+
 ## Testing & verification
 
 ```bash
@@ -281,8 +262,6 @@ cd meshpay-dashboard && npm ci && npm test && npm run build
 CI (`.github/workflows/ci-cd.yml`) runs dependency-check, Maven build + test against Postgres/Kafka services, SpotBugs/PMD, JaCoCo, and Docker image builds on `main`.
 
 ### Recorded verification — 2026-11-06 (local Compose, Apple Silicon)
-
-Results recorded during development sessions — not a claim of current CI status:
 
 | Suite | Result |
 | --- | --- |
