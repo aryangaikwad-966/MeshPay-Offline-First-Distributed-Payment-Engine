@@ -2,7 +2,7 @@
 
 # SyncPay
 
-### An offline-first, Distributed payment engine
+### An offline-first, distributed payment engine
 
 Cryptographically secured packet sync · durable idempotency · Kafka sagas · simulated ledger · ops dashboard
 
@@ -10,6 +10,7 @@ Cryptographically secured packet sync · durable idempotency · Kafka sagas · s
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.3-6DB33F?logo=springboot&logoColor=white)](https://spring.io/projects/spring-boot)
 [![Kafka](https://img.shields.io/badge/Kafka-3.5-231F20?logo=apachekafka&logoColor=white)](https://kafka.apache.org)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white)](https://postgresql.org)
+[![Redis](https://img.shields.io/badge/Redis-7-DC382D?logo=redis&logoColor=white)](https://redis.io)
 [![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)](https://react.dev)
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)](https://docs.docker.com/compose/)
 [![License](https://img.shields.io/badge/license-unspecified-lightgrey)](#license)
